@@ -1,0 +1,20 @@
+# .gitignore
+
+bin/
+sbin/
+include/
+lib*/
+share/
+etc/
+thirdparty/
+patch/
+build/
+cmake-build-*/
+
+.idea/
+.projectile
+GTAGS
+GRTAGS
+GPATH
+
+.gdb_history
