@@ -8,8 +8,28 @@
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 #include <sys/user.h>
+#include <sys/uio.h>
+#include <elf.h>
 #include "option.h"
 #include "unilog.h"
+
+#ifdef __x86_64__
+#define R0(registers) ((registers)->rax)
+#define DI(registers) ((registers)->rdi)
+#define BP(registers) ((registers)->rbp)
+#define SP(registers) ((registers)->rsp)
+#define PC(registers) ((registers)->rip)
+#define TRAP_INST_LEN 1
+#elif defined __aarch64__
+#define R0(registers) ((registers)->regs[0])
+#define R8(registers) ((registers)->regs[8])
+#define SP(registers) ((registers)->sp)
+#define PC(registers) ((registers)->pc)
+#define FP(registers) ((registers)->regs[29])
+#define LR(registers) ((registers)->regs[30])
+#define TRAP_INST_LEN 0 // ill inst
+#endif
+#define TRAP_COUNT_MAX 3
 
 #define CONFIG_FILE "ptmalloc_dump.conf"
 
@@ -17,7 +37,7 @@ static struct option opttab[] = {
 	INIT_OPTION_BOOL("-D", "debug", false, ""),
 	INIT_OPTION_INT("-p:", "pid", 0, ""),
 	INIT_OPTION_STRING("-f:", "logfile", "/tmp/ptmalloc_dump.log", ""),
-	INIT_OPTION_STRING("-I:", "mallinfo_offset", "0x86e30", ""),
+	INIT_OPTION_STRING("-I:", "mallinfo_offset", "0x73ab8", "a113"),
 	INIT_OPTION_NONE(),
 };
 
@@ -87,23 +107,46 @@ static int detach_process(int pid)
 
 static int read_context(int pid, struct user_regs_struct *regs)
 {
-	if (ptrace(PTRACE_GETREGS, pid, NULL, regs) == -1) {
-		LOG_ERROR("PTRACE_SETREGS, %s\n", strerror(errno));
-		return -1;
-	}
-	return 0;
-}
-
-static int write_context(int pid, const struct user_regs_struct *regs)
-{
-	if (ptrace(PTRACE_SETREGS, pid, NULL, regs) == -1) {
-		LOG_ERROR("PTRACE_SETREGS, %s\n", strerror(errno));
-		return -1;
-	}
-	return 0;
-}
+	int rc;
 
 #ifdef __x86_64__
+	rc = ptrace(PTRACE_GETREGS, pid, NULL, regs);
+#elif defined __aarch64__
+	struct iovec iovec;
+	iovec.iov_base = regs;
+	iovec.iov_len = sizeof(*regs);
+	rc = ptrace(PTRACE_GETREGSET, pid, (void *)NT_PRSTATUS, &iovec);
+#endif
+
+	if (rc == -1) {
+		LOG_ERROR("PTRACE_GETREGS, %s\n", strerror(errno));
+		return -1;
+	}
+
+	return 0;
+}
+
+static int write_context(int pid, struct user_regs_struct *regs)
+{
+	int rc;
+
+#ifdef __x86_64__
+	rc = ptrace(PTRACE_SETREGS, pid, NULL, regs);
+#elif defined __aarch64__
+	struct iovec iovec;
+	iovec.iov_base = regs;
+	iovec.iov_len = sizeof(*regs);
+	rc = ptrace(PTRACE_SETREGSET, pid, (void *)NT_PRSTATUS, &iovec);
+#endif
+
+	if (rc == -1) {
+		LOG_ERROR("PTRACE_SETREGS, %s\n", strerror(errno));
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 {
 	/*
@@ -118,44 +161,70 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 	unsigned long long mallinfo_addr = 0;
 	unsigned long long base = get_libc_base(pid);
 	struct user_regs_struct regs;
+	long trap_pc;
+	long trap_pc_text;
+	long trap_count;
 	long data;
 
 	// TODO: check return value of ptrace
 
 	// set regs
 	read_context(pid, &regs);
-	regs.rsp -= 0x100;
-	regs.rbp = regs.rsp;
-	regs.rax = 0;
-	regs.rdi = regs.rsp + sizeof(long) * 4;
-	regs.rip = base + offset;
-	ptrace(PTRACE_SETREGS, pid, NULL, &regs);
+	SP(&regs) -= 0x100;
+#ifdef __x86_64__
+	BP(&regs) = SP(&regs);
+	R0(&regs) = 0;
+	DI(&regs) = SP(&regs) + sizeof(long) * 4;
+	mallinfo_addr = DI(&regs);
+#elif defined __aarch64__
+	FP(&regs) = SP(&regs);
+	R0(&regs) = SP(&regs) + sizeof(long) * 4;
+	R8(&regs) = SP(&regs) + sizeof(long) * 4;
+	mallinfo_addr = R0(&regs);
+#endif
+
+	// set trap
+	trap_pc = PC(&regs);
+	trap_pc_text = ptrace(PTRACE_PEEKDATA, pid, trap_pc, NULL);
+#ifdef __x86_64__
+	ptrace(PTRACE_POKEDATA, pid, trap_pc, (void *)0xcc);
+	ptrace(PTRACE_POKEDATA, pid, SP(&regs), (void *)trap_pc);
+#elif defined __aarch64__
+	ptrace(PTRACE_POKEDATA, pid, trap_pc, (void *)0xe7f000f0);
+	LR(&regs) = trap_pc;
+#endif
+
+	PC(&regs) = base + offset;
 	write_context(pid, &regs);
-	mallinfo_addr = regs.rdi;
-
-	// set rip on stack
-	data = regs.rsp + sizeof(long) * 2;
-	ptrace(PTRACE_POKEDATA, pid, regs.rsp, (void *)data);
-
-	// set int 3 on stack
-	ptrace(PTRACE_POKEDATA, pid, regs.rsp + sizeof(long) * 2, (void *)0xcc);
 
 	// continue
-	data = ptrace(PTRACE_CONT, pid, NULL, NULL);
-	int status;
-	waitpid(pid, &status, 0);
-	if (WIFEXITED(status)) {
-		LOG_DEBUG("exited, status=%d\n", WEXITSTATUS(status));
-	} else if (WIFSIGNALED(status)) {
-		LOG_DEBUG("killed by signal %d\n", WTERMSIG(status));
-	} else if (WIFSTOPPED(status)) {
-		LOG_DEBUG("stopped by signal %d\n", WSTOPSIG(status));
-	} else if (WIFCONTINUED(status)) {
-		LOG_DEBUG("continued\n");
-	}
+	LOG_DEBUG("PC: %llx\n", PC(&regs));
+	LOG_DEBUG("SP: %llx\n", SP(&regs));
+	LOG_DEBUG("trap_pc: %llx\n", trap_pc);
+	trap_count = 0;
+	do {
+		ptrace(PTRACE_CONT, pid, NULL, NULL);
+		int status;
+		waitpid(pid, &status, 0);
+		if (WIFEXITED(status)) {
+			LOG_DEBUG("exited, status=%d\n", WEXITSTATUS(status));
+		} else if (WIFSIGNALED(status)) {
+			LOG_DEBUG("killed by signal %d\n", WTERMSIG(status));
+		} else if (WIFSTOPPED(status)) {
+			LOG_DEBUG("stopped by signal %d\n", WSTOPSIG(status));
+		} else if (WIFCONTINUED(status)) {
+			LOG_DEBUG("continued\n");
+		}
+		read_context(pid, &regs);
+		LOG_DEBUG("PC: %llx\n", PC(&regs));
+		LOG_DEBUG("SP: %llx\n", SP(&regs));
+
+		trap_count++;
+	} while (PC(&regs) - TRAP_INST_LEN != trap_pc &&
+	         trap_count <= TRAP_COUNT_MAX);
+	ptrace(PTRACE_POKEDATA, pid, trap_pc, (void *)trap_pc_text);
 
 	// get result of mallinfo
-	read_context(pid, &regs);
 	for (int i = 0; i < 5; i++) {
 		data = ptrace(PTRACE_PEEKDATA, pid, mallinfo_addr + i * 8, NULL);
 		memcpy((char *)&mi + i * 8, &data, sizeof(data));
@@ -163,7 +232,6 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 
 	return mi;
 }
-#endif
 
 static int start_injection(int pid)
 {
