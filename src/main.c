@@ -233,6 +233,17 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 	return mi;
 }
 
+static int is_process_exist(int pid)
+{
+	char buf[256];
+
+	snprintf(buf, sizeof(buf), "/proc/%d/", pid);
+	if (access(buf, R_OK) == 0)
+		return 1;
+	else
+		return 0;
+}
+
 static int start_injection(int pid)
 {
 	struct user_regs_struct regs;
@@ -276,7 +287,13 @@ int main(int argc, char *argv[])
 	else
 		unilog_set_level(UNILOG_INFO);
 
-	start_injection(find_option("pid", opttab)->value.i);
+	int pid = find_option("pid", opttab)->value.i;
+	if (!is_process_exist(pid)) {
+		fprintf(stderr, "Process(%d) not exist, exit ...\n", pid);
+		exit(EXIT_FAILURE);
+	}
+	start_injection(pid);
 
+	option_fini(opttab);
 	return 0;
 }
