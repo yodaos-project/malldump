@@ -246,16 +246,14 @@ static int start_injection(int pid)
 		find_option("mallinfo_offset", opttab)->value.s,
 		NULL, 16);
 	mi = inject_libc_mallinfo(pid, mallinfo_offset);
-	LOG_INFO("arena: %d\n", mi.arena);
-	LOG_INFO("ordblks: %d\n", mi.ordblks);
-	LOG_INFO("smblks: %d\n", mi.smblks);
-	LOG_INFO("hblks: %d\n", mi.hblks);
-	LOG_INFO("hblkhd: %d\n", mi.hblkhd);
-	LOG_INFO("usmblks: %d\n", mi.usmblks);
-	LOG_INFO("fsmblks: %d\n", mi.fsmblks);
-	LOG_INFO("uordblks: %d\n", mi.uordblks);
-	LOG_INFO("fordblks: %d\n", mi.fordblks);
-	LOG_INFO("keepcost: %d\n", mi.keepcost);
+	LOG_INFO("system bytes: %d\n", mi.arena);
+	LOG_INFO("in use bytes: %d\n", mi.uordblks);
+	LOG_INFO("avail bytes: %d\n", mi.fordblks);
+	LOG_INFO("free chunks: %d\n", mi.ordblks);
+	LOG_INFO("fastbin blocks: %d\n", mi.smblks);
+	LOG_INFO("fastbin bytes: %d\n", mi.fsmblks);
+	LOG_INFO("mmapped regions: %d\n", mi.hblks);
+	LOG_INFO("mmapped bytes: %d\n", mi.hblkhd);
 
 	write_context(pid, &regs);
 	detach_process(pid);
