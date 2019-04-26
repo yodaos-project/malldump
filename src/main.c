@@ -9,6 +9,8 @@
 #include <sys/wait.h>
 #include <sys/user.h>
 #include <sys/uio.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <elf.h>
 #include "option.h"
 #include "unilog.h"
@@ -39,6 +41,7 @@
 
 static struct option opttab[] = {
 	INIT_OPTION_BOOL("-D", "debug", false, ""),
+	INIT_OPTION_BOOL("-h", "human", false, ""),
 	INIT_OPTION_INT("-p:", "pid", 0, ""),
 	INIT_OPTION_STRING("-f:", "logfile", "/tmp/malldump.log", ""),
 	INIT_OPTION_STRING("-I:", "mallinfo_offset", "", ""),
@@ -84,7 +87,8 @@ static int exec_shell(const char *cmd, char *result, size_t result_size)
 static unsigned long long get_libc_base(int pid)
 {
 	char cmd[256], result[256];
-	snprintf(cmd, 256, "cat /proc/%d/maps |grep 'libc-.*.so' |head -n1 |cut -d'-' -f1", pid);
+	snprintf(cmd, 256, "cat /proc/%d/maps |grep 'libc-.*.so'"
+	         " |head -n1 |cut -d'-' -f1", pid);
 	exec_shell(cmd, result, 256);
 
 	char *endptr = NULL;
@@ -248,11 +252,30 @@ static int is_process_exist(int pid)
 		return 0;
 }
 
+static int get_process_cmdline(int pid, char *buf, size_t size)
+{
+	// TODO: error check
+
+	snprintf(buf, size, "/proc/%d/cmdline", pid);
+
+	int fd = open(buf, O_RDONLY);
+	int nr, offset = 0;
+	while ((nr = read(fd, buf + offset, size - offset)) > 0)
+		offset += nr;
+	close(fd);
+
+	if (offset > strlen(buf))
+		buf[strlen(buf)] = ' ';
+
+	return 0;
+}
+
 static int start_injection(int pid)
 {
 	struct user_regs_struct regs;
 	struct mallinfo mi;
 	long mallinfo_offset;
+	char process_cmdline[256];
 
 	attach_process(pid);
 	waitpid(pid, NULL, 0);
@@ -267,14 +290,32 @@ static int start_injection(int pid)
 	}
 
 	mi = inject_libc_mallinfo(pid, mallinfo_offset);
-	printf("system bytes: %d\n", mi.arena);
-	printf("in use bytes: %d\n", mi.uordblks);
-	printf("avail bytes: %d\n", mi.fordblks);
-	printf("free chunks: %d\n", mi.ordblks);
-	printf("fastbin blocks: %d\n", mi.smblks);
-	printf("fastbin bytes: %d\n", mi.fsmblks);
-	printf("mmapped regions: %d\n", mi.hblks);
-	printf("mmapped bytes: %d\n", mi.hblkhd);
+	get_process_cmdline(pid, process_cmdline, sizeof(process_cmdline));
+	printf("process cmd:    %s\n", process_cmdline);
+	printf("process pid:    %d\n", pid);
+	if (find_option("human", opttab)->value.b) {
+		printf("total memory:   %.1fK\n", (double)mi.arena / 1024);
+		printf("avail memory:   %.1fK\n", (double)mi.fordblks / 1024);
+		printf("used memory:    %.1fK\n", (double)mi.uordblks / 1024);
+		printf("used memory%%:  %.2f%%\n",
+		       (double)mi.uordblks / mi.arena * 100);
+		printf("free chunks:    %d\n", mi.ordblks);
+		printf("fastbin chunks: %d\n", mi.smblks);
+		printf("fastbin memory: %.1fK\n", (double)mi.fsmblks / 1024);
+		printf("mmapped chunks: %d\n", mi.hblks);
+		printf("mmapped memory: %.1fK\n", (double)mi.hblkhd / 1024);
+	} else {
+		printf("total memory:   %d\n", mi.arena);
+		printf("avail memory:   %d\n", mi.fordblks);
+		printf("used memory:    %d\n", mi.uordblks);
+		printf("used memory%%:  %.2f%%\n",
+		       (double)mi.uordblks / mi.arena * 100);
+		printf("free chunks:    %d\n", mi.ordblks);
+		printf("fastbin chunks: %d\n", mi.smblks);
+		printf("fastbin memory: %d\n", mi.fsmblks);
+		printf("mmapped chunks: %d\n", mi.hblks);
+		printf("mmapped memory: %d\n", mi.hblkhd);
+	}
 
 	write_context(pid, &regs);
 	detach_process(pid);
@@ -307,4 +348,3 @@ int main(int argc, char *argv[])
 	option_fini(opttab);
 	return 0;
 }
-
