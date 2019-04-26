@@ -53,7 +53,7 @@ libgtest()
 	fi
 }
 
-ptmalloc_dump()
+malldump()
 {
 	mkdir -p $PROJECT_DIR/build && cd $PROJECT_DIR/build
 	cmake .. && make -j$JOBS
@@ -63,4 +63,4 @@ git submodule init
 git submodule update
 
 do_build libgtest
-do_build ptmalloc_dump
+do_build malldump

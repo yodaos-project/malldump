@@ -31,12 +31,12 @@
 #endif
 #define TRAP_COUNT_MAX 3
 
-#define CONFIG_FILE "ptmalloc_dump.conf"
+#define CONFIG_FILE "malldump.conf"
 
 static struct option opttab[] = {
 	INIT_OPTION_BOOL("-D", "debug", false, ""),
 	INIT_OPTION_INT("-p:", "pid", 0, ""),
-	INIT_OPTION_STRING("-f:", "logfile", "/tmp/ptmalloc_dump.log", ""),
+	INIT_OPTION_STRING("-f:", "logfile", "/tmp/malldump.log", ""),
 	INIT_OPTION_STRING("-I:", "mallinfo_offset", "0x73ab8", "a113"),
 	INIT_OPTION_NONE(),
 };
