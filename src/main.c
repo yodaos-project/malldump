@@ -31,13 +31,17 @@
 #endif
 #define TRAP_COUNT_MAX 3
 
+#ifndef MALLINFO_OFFSET
+#define MALLINFO_OFFSET -1
+#endif
+
 #define CONFIG_FILE "malldump.conf"
 
 static struct option opttab[] = {
 	INIT_OPTION_BOOL("-D", "debug", false, ""),
 	INIT_OPTION_INT("-p:", "pid", 0, ""),
 	INIT_OPTION_STRING("-f:", "logfile", "/tmp/malldump.log", ""),
-	INIT_OPTION_STRING("-I:", "mallinfo_offset", "0x73ab8", "a113"),
+	INIT_OPTION_STRING("-I:", "mallinfo_offset", "", ""),
 	INIT_OPTION_NONE(),
 };
 
@@ -248,14 +252,20 @@ static int start_injection(int pid)
 {
 	struct user_regs_struct regs;
 	struct mallinfo mi;
+	long mallinfo_offset;
 
 	attach_process(pid);
 	waitpid(pid, NULL, 0);
 	read_context(pid, &regs);
 
-	long mallinfo_offset = strtol(
-		find_option("mallinfo_offset", opttab)->value.s,
-		NULL, 16);
+	if (MALLINFO_OFFSET != -1)
+		mallinfo_offset = MALLINFO_OFFSET;
+	if (strlen(find_option("mallinfo_offset", opttab)->value.s)) {
+		mallinfo_offset = strtol(
+			find_option("mallinfo_offset", opttab)->value.s,
+			NULL, 16);
+	}
+
 	mi = inject_libc_mallinfo(pid, mallinfo_offset);
 	printf("system bytes: %d\n", mi.arena);
 	printf("in use bytes: %d\n", mi.uordblks);
@@ -297,3 +307,4 @@ int main(int argc, char *argv[])
 	option_fini(opttab);
 	return 0;
 }
+
