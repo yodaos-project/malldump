@@ -90,8 +90,8 @@ static unsigned long long get_libc_base(int pid)
 static int attach_process(int pid)
 {
 	if (ptrace(PTRACE_ATTACH, pid, NULL, NULL) == -1) {
-		LOG_ERROR("PTRACE_ATTACH, %s\n", strerror(errno));
-		return -1;
+		fprintf(stderr, "PTRACE_ATTACH, %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
 	}
 	return 0;
 }
@@ -99,8 +99,8 @@ static int attach_process(int pid)
 static int detach_process(int pid)
 {
 	if (ptrace(PTRACE_DETACH, pid, NULL, NULL) == -1) {
-		LOG_ERROR("PTRACE_DETACH, %s\n", strerror(errno));
-		return -1;
+		fprintf(stderr, "PTRACE_DETACH, %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
 	}
 	return 0;
 }
@@ -119,8 +119,8 @@ static int read_context(int pid, struct user_regs_struct *regs)
 #endif
 
 	if (rc == -1) {
-		LOG_ERROR("PTRACE_GETREGS, %s\n", strerror(errno));
-		return -1;
+		fprintf(stderr, "PTRACE_GETREGS, %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
 	}
 
 	return 0;
@@ -140,8 +140,8 @@ static int write_context(int pid, struct user_regs_struct *regs)
 #endif
 
 	if (rc == -1) {
-		LOG_ERROR("PTRACE_SETREGS, %s\n", strerror(errno));
-		return -1;
+		fprintf(stderr, "PTRACE_SETREGS, %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
 	}
 
 	return 0;
@@ -221,7 +221,7 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 
 		trap_count++;
 	} while (PC(&regs) - TRAP_INST_LEN != trap_pc &&
-	         trap_count <= TRAP_COUNT_MAX);
+	         trap_count < TRAP_COUNT_MAX);
 	ptrace(PTRACE_POKEDATA, pid, trap_pc, (void *)trap_pc_text);
 
 	// get result of mallinfo
@@ -246,14 +246,14 @@ static int start_injection(int pid)
 		find_option("mallinfo_offset", opttab)->value.s,
 		NULL, 16);
 	mi = inject_libc_mallinfo(pid, mallinfo_offset);
-	LOG_INFO("system bytes: %d\n", mi.arena);
-	LOG_INFO("in use bytes: %d\n", mi.uordblks);
-	LOG_INFO("avail bytes: %d\n", mi.fordblks);
-	LOG_INFO("free chunks: %d\n", mi.ordblks);
-	LOG_INFO("fastbin blocks: %d\n", mi.smblks);
-	LOG_INFO("fastbin bytes: %d\n", mi.fsmblks);
-	LOG_INFO("mmapped regions: %d\n", mi.hblks);
-	LOG_INFO("mmapped bytes: %d\n", mi.hblkhd);
+	printf("system bytes: %d\n", mi.arena);
+	printf("in use bytes: %d\n", mi.uordblks);
+	printf("avail bytes: %d\n", mi.fordblks);
+	printf("free chunks: %d\n", mi.ordblks);
+	printf("fastbin blocks: %d\n", mi.smblks);
+	printf("fastbin bytes: %d\n", mi.fsmblks);
+	printf("mmapped regions: %d\n", mi.hblks);
+	printf("mmapped bytes: %d\n", mi.hblkhd);
 
 	write_context(pid, &regs);
 	detach_process(pid);
@@ -267,7 +267,7 @@ int main(int argc, char *argv[])
 		assert(option_init_from_file(opttab, CONFIG_FILE) == 0);
 
 	if (option_init_from_arg(opttab, argc, argv)) {
-		LOG_ERROR("%s\n", option_errmsg());
+		fprintf(stderr, "%s\n", option_errmsg());
 		exit(EXIT_FAILURE);
 	}
 
