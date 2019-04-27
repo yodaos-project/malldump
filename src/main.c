@@ -34,17 +34,39 @@
 #define TRAP_COUNT_MAX 3
 
 #ifndef MALLINFO_OFFSET
-#define MALLINFO_OFFSET -1
+#error "MALLINFO_OFFSET not defined"
 #endif
+
+#ifndef MP__OFFSET
+#error "MP__OFFSET not defined"
+#endif
+
+#define KILOBYTE 1024
+#define MEGABYTE (1024 * 1024)
 
 #define CONFIG_FILE "malldump.conf"
 
+// TODO: implement help, ptmalloc
 static struct option opttab[] = {
-	INIT_OPTION_BOOL("-D", "debug", false, ""),
-	INIT_OPTION_BOOL("-h", "human", false, ""),
-	INIT_OPTION_INT("-p:", "pid", 0, ""),
-	INIT_OPTION_STRING("-f:", "logfile", "/tmp/malldump.log", ""),
-	INIT_OPTION_STRING("-I:", "mallinfo_offset", "", ""),
+	INIT_OPTION_BOOL("-h", "help", false, "print this usage"),
+	INIT_OPTION_BOOL("-D", "debug", false, "debug mode [defaut: false]"),
+
+	INIT_OPTION_STRING("-t", "type", "ptmalloc",
+	                   "type of malloc [default: ptmalloc]"),
+	INIT_OPTION_INT("-p:", "pid", 0, "pid of the target process"),
+
+// http://gcc.gnu.org/onlinedocs/cpp/Stringification.html
+#define MALLINFO_DESC(OFFSET) "offset of mallinfo [default: " #OFFSET "]"
+#define MALLINFO_DESC2(OFFSET) MALLINFO_DESC(OFFSET)
+	INIT_OPTION_INT("-I:", "mallinfo_offset", 0,
+	                MALLINFO_DESC2(MALLINFO_OFFSET)),
+#define MP__DESC(OFFSET) "offset of mp_ [default: " #OFFSET "]"
+#define MP__DESC2(OFFSET) MP__DESC(OFFSET)
+	INIT_OPTION_INT("-P:", "mp__offset", 0, MP__DESC2(MP__OFFSET)),
+
+	INIT_OPTION_BOOL("-H", "human", false,
+	                 "display size of memory in"
+	                 " human mode [default: false]"),
 	INIT_OPTION_NONE(),
 };
 
@@ -275,20 +297,25 @@ static int start_injection(int pid)
 	struct user_regs_struct regs;
 	struct mallinfo mi;
 	long mallinfo_offset;
+	long mp__offset;
 	char process_cmdline[256];
 
 	attach_process(pid);
 	waitpid(pid, NULL, 0);
 	read_context(pid, &regs);
 
-	if (MALLINFO_OFFSET != -1)
+	if (find_option("mallinfo_offset", opttab)->value.i)
+		mallinfo_offset =
+			find_option("mallinfo_offset", opttab)->value.i;
+	else
 		mallinfo_offset = MALLINFO_OFFSET;
-	if (strlen(find_option("mallinfo_offset", opttab)->value.s)) {
-		mallinfo_offset = strtol(
-			find_option("mallinfo_offset", opttab)->value.s,
-			NULL, 16);
-	}
 
+	if (find_option("mp__offset", opttab)->value.i)
+		mp__offset = find_option("mp__offset", opttab)->value.i;
+	else
+		mp__offset = MP__OFFSET;
+
+	// TODO: implement inject libc_mp_
 	mi = inject_libc_mallinfo(pid, mallinfo_offset);
 	get_process_cmdline(pid, process_cmdline, sizeof(process_cmdline));
 	printf("process cmd:    %s\n", process_cmdline);
