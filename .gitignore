@@ -7,14 +7,7 @@ lib*/
 share/
 etc/
 thirdparty/
+3rd/
 patch/
 build/
 cmake-build-*/
-
-.idea/
-.projectile
-GTAGS
-GRTAGS
-GPATH
-
-.gdb_history
