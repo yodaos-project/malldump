@@ -46,6 +46,17 @@
 
 #define CONFIG_FILE "malldump.conf"
 
+struct malloc_par {
+	/* Tunable parameters */
+	unsigned long trim_threshold;
+	size_t top_pad;
+	size_t mmap_threshold;
+	size_t arena_test;
+	size_t arena_max;
+
+	/* ... */
+};
+
 // TODO: implement ptmalloc
 static struct option opttab[] = {
 	INIT_OPTION_BOOL("-h", "help", false, "print this usage"),
@@ -263,6 +274,21 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 	return mi;
 }
 
+static struct malloc_par inject_libc_mp_(int pid, long offset)
+{
+	unsigned long long base = get_libc_base(pid);
+	unsigned long long mp__addr = base + offset;
+	struct malloc_par mp;
+	long data;
+
+	for (int i = 0; i < 5; i++) {
+		data = ptrace(PTRACE_PEEKDATA, pid, mp__addr + i * 8, NULL);
+		memcpy((char *)&mp + i * 8, &data, sizeof(data));
+	}
+
+	return mp;
+}
+
 static int is_process_exist(int pid)
 {
 	char buf[256];
@@ -295,10 +321,11 @@ static int get_process_cmdline(int pid, char *buf, size_t size)
 static int start_injection(int pid)
 {
 	struct user_regs_struct regs;
+	char process_cmdline[256];
 	struct mallinfo mi;
 	long mallinfo_offset;
+	struct malloc_par mp;
 	long mp__offset;
-	char process_cmdline[256];
 
 	attach_process(pid);
 	waitpid(pid, NULL, 0);
@@ -315,9 +342,9 @@ static int start_injection(int pid)
 	else
 		mp__offset = MP__OFFSET;
 
-	// TODO: implement inject libc_mp_
-	mi = inject_libc_mallinfo(pid, mallinfo_offset);
 	get_process_cmdline(pid, process_cmdline, sizeof(process_cmdline));
+	mi = inject_libc_mallinfo(pid, mallinfo_offset);
+	mp = inject_libc_mp_(pid, mp__offset);
 	printf("process cmd:    %s\n", process_cmdline);
 	printf("process pid:    %d\n", pid);
 	if (find_option("human", opttab)->value.b) {
@@ -331,6 +358,11 @@ static int start_injection(int pid)
 		printf("fastbin memory: %.1fK\n", (double)mi.fsmblks / 1024);
 		printf("mmapped chunks: %d\n", mi.hblks);
 		printf("mmapped memory: %.1fK\n", (double)mi.hblkhd / 1024);
+		printf("trim threshold: %.1fK\n",
+		       (double)mp.trim_threshold / 1024);
+		printf("mmap threshold: %.1fK\n",
+		       (double)mp.mmap_threshold / 1024);
+		printf("arean max:      %lu\n", mp.arena_max);
 	} else {
 		printf("total memory:   %d\n", mi.arena);
 		printf("avail memory:   %d\n", mi.fordblks);
@@ -342,6 +374,9 @@ static int start_injection(int pid)
 		printf("fastbin memory: %d\n", mi.fsmblks);
 		printf("mmapped chunks: %d\n", mi.hblks);
 		printf("mmapped memory: %d\n", mi.hblkhd);
+		printf("trim threshold: %lu\n", mp.trim_threshold);
+		printf("mmap threshold: %lu\n", mp.mmap_threshold);
+		printf("arean max:      %lu\n", mp.arena_max);
 	}
 
 	write_context(pid, &regs);
