@@ -18,15 +18,15 @@ enum option_value_type {
 };
 
 struct option {
-	char *optshort;
-	char *key;
+	const char *optshort;
+	const char *key;
 	union {
 		char *s;
 		int i;
 		bool b;
 	} value;
 	enum option_value_type value_type;
-	char *comment;
+	const char *desc;
 };
 
 #define INIT_OPTION_STRING(optshort, key, val, desc) \
@@ -43,5 +43,6 @@ struct option *find_option(const char *key, struct option * const opttab);
 int option_init_from_arg(struct option * const opttab, int argc, char *argv[]);
 int option_init_from_file(struct option * const opttab, const char *filename);
 void option_fini(struct option * const opttab);
+void option_usage(struct option * const opttab);
 
 #endif

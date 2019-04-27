@@ -158,3 +158,16 @@ void option_fini(struct option * const opttab)
 		}
 	}
 }
+
+void option_usage(struct option * const opttab)
+{
+	char buf[16];
+
+	fprintf(stderr, "usage:\n");
+	for (struct option *iter = opttab; iter->optshort != NULL; iter++) {
+		snprintf(buf, sizeof(buf), "%s", iter->optshort);
+		if (iter->value_type != OPTVAL_BOOL)
+			snprintf(buf + 2, sizeof(buf) - 2, " %s", "<arg>");
+		fprintf(stderr, "  %-12s %s\n", buf, iter->desc);
+	}
+}

@@ -46,7 +46,7 @@
 
 #define CONFIG_FILE "malldump.conf"
 
-// TODO: implement help, ptmalloc
+// TODO: implement ptmalloc
 static struct option opttab[] = {
 	INIT_OPTION_BOOL("-h", "help", false, "print this usage"),
 	INIT_OPTION_BOOL("-D", "debug", false, "debug mode [defaut: false]"),
@@ -358,6 +358,11 @@ int main(int argc, char *argv[])
 	if (option_init_from_arg(opttab, argc, argv)) {
 		fprintf(stderr, "%s\n", option_errmsg());
 		exit(EXIT_FAILURE);
+	}
+
+	if (find_option("help", opttab)->value.b) {
+		option_usage(opttab);
+		exit(1);
 	}
 
 	if (find_option("debug", opttab)->value.b)
