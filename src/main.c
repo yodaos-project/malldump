@@ -25,22 +25,23 @@
 #elif defined __aarch64__
 #define R0(registers) ((registers)->regs[0])
 #define R8(registers) ((registers)->regs[8])
-#define SP(registers) ((registers)->sp)
-#define PC(registers) ((registers)->pc)
 #define FP(registers) ((registers)->regs[29])
 #define LR(registers) ((registers)->regs[30])
+#define SP(registers) ((registers)->sp)
+#define PC(registers) ((registers)->pc)
 #define TRAP_INST_LEN 0 // ill inst
 #endif
 #define TRAP_COUNT_MAX 3
 
 #ifndef MALLINFO_OFFSET
-#error "MALLINFO_OFFSET not defined"
+#error "MALLINFO_OFFSET is not defined"
 #endif
 
 #ifndef MP__OFFSET
-#error "MP__OFFSET not defined"
+#error "MP__OFFSET is not defined"
 #endif
 
+#define PT_LEN sizeof(void *)
 #define KILOBYTE 1024
 #define MEGABYTE (1024 * 1024)
 
@@ -212,16 +213,16 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 	// set regs
 	read_context(pid, &regs);
 #ifdef __x86_64__
-	SP(&regs) = ((SP(&regs) - 0x100) & ~0xf) + 8;
+	SP(&regs) = ((SP(&regs) - 0x100) & ~0xf) + PT_LEN;
 	BP(&regs) = SP(&regs);
 	R0(&regs) = 0;
-	DI(&regs) = SP(&regs) + sizeof(long) * 4;
+	DI(&regs) = SP(&regs) + PT_LEN * 4;
 	mallinfo_addr = DI(&regs);
 #elif defined __aarch64__
 	SP(&regs) = (SP(&regs) - 0x100) & ~0xf;
 	FP(&regs) = SP(&regs);
-	R0(&regs) = SP(&regs) + sizeof(long) * 4;
-	R8(&regs) = SP(&regs) + sizeof(long) * 4;
+	R0(&regs) = SP(&regs) + PT_LEN * 4;
+	R8(&regs) = SP(&regs) + PT_LEN * 4;
 	mallinfo_addr = R0(&regs);
 #endif
 
@@ -267,9 +268,10 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 	ptrace(PTRACE_POKEDATA, pid, trap_pc, (void *)trap_pc_text);
 
 	// get result of mallinfo
-	for (int i = 0; i < 5; i++) {
-		data = ptrace(PTRACE_PEEKDATA, pid, mallinfo_addr + i * 8, NULL);
-		memcpy((char *)&mi + i * 8, &data, sizeof(data));
+	for (int i = 0; i < sizeof(struct mallinfo) / PT_LEN; i++) {
+		data = ptrace(PTRACE_PEEKDATA, pid,
+		              mallinfo_addr + i * PT_LEN, NULL);
+		memcpy((char *)&mi + i * PT_LEN, &data, sizeof(data));
 	}
 
 	return mi;
@@ -282,9 +284,10 @@ static struct malloc_par inject_libc_mp_(int pid, long offset)
 	struct malloc_par mp;
 	long data;
 
-	for (int i = 0; i < 5; i++) {
-		data = ptrace(PTRACE_PEEKDATA, pid, mp__addr + i * 8, NULL);
-		memcpy((char *)&mp + i * 8, &data, sizeof(data));
+	for (int i = 0; i < sizeof(struct malloc_par) / PT_LEN; i++) {
+		data = ptrace(PTRACE_PEEKDATA, pid,
+		              mp__addr + i * PT_LEN, NULL);
+		memcpy((char *)&mp + i * PT_LEN, &data, sizeof(data));
 	}
 
 	return mp;
@@ -349,20 +352,22 @@ static int start_injection(int pid)
 	printf("process cmd:    %s\n", process_cmdline);
 	printf("process pid:    %d\n", pid);
 	if (find_option("human", opttab)->value.b) {
-		printf("total memory:   %.1fK\n", (double)mi.arena / 1024);
-		printf("avail memory:   %.1fK\n", (double)mi.fordblks / 1024);
-		printf("used memory:    %.1fK\n", (double)mi.uordblks / 1024);
+		printf("total memory:   %.1fK\n", (double)mi.arena / KILOBYTE);
+		printf("avail memory:   %.1fK\n",
+		       (double)mi.fordblks / KILOBYTE);
+		printf("used memory:    %.1fK\n",
+		       (double)mi.uordblks / KILOBYTE);
 		printf("used memory%%:   %.2f%%\n",
 		       (double)mi.uordblks / mi.arena * 100);
 		printf("free chunks:    %d\n", mi.ordblks);
 		printf("fastbin chunks: %d\n", mi.smblks);
-		printf("fastbin memory: %.1fK\n", (double)mi.fsmblks / 1024);
+		printf("fastbin memory: %.1fK\n", (double)mi.fsmblks / KILOBYTE);
 		printf("mmapped chunks: %d\n", mi.hblks);
-		printf("mmapped memory: %.1fK\n", (double)mi.hblkhd / 1024);
+		printf("mmapped memory: %.1fK\n", (double)mi.hblkhd / KILOBYTE);
 		printf("trim threshold: %.1fK\n",
-		       (double)mp.trim_threshold / 1024);
+		       (double)mp.trim_threshold / KILOBYTE);
 		printf("mmap threshold: %.1fK\n",
-		       (double)mp.mmap_threshold / 1024);
+		       (double)mp.mmap_threshold / KILOBYTE);
 	} else {
 		printf("total memory:   %d\n", mi.arena);
 		printf("avail memory:   %d\n", mi.fordblks);
