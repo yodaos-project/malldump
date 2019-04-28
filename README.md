@@ -2,9 +2,14 @@
 
 Malldump attachs a process, and dumps the status of low level malloc of the process.
 
-## Support malloc implementations
+## Supported malloc implementations
 
 - ptmalloc, also known as ptmalloc2
+
+## Supported platforms
+
+- x86_64
+- aarch64
 
 ## Usage
 
