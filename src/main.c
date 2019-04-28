@@ -211,13 +211,14 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 
 	// set regs
 	read_context(pid, &regs);
-	SP(&regs) -= 0x100;
 #ifdef __x86_64__
+	SP(&regs) = ((SP(&regs) - 0x100) & ~0xf) + 8;
 	BP(&regs) = SP(&regs);
 	R0(&regs) = 0;
 	DI(&regs) = SP(&regs) + sizeof(long) * 4;
 	mallinfo_addr = DI(&regs);
 #elif defined __aarch64__
+	SP(&regs) = (SP(&regs) - 0x100) & ~0xf;
 	FP(&regs) = SP(&regs);
 	R0(&regs) = SP(&regs) + sizeof(long) * 4;
 	R8(&regs) = SP(&regs) + sizeof(long) * 4;
