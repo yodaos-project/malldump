@@ -1,6 +1,6 @@
 # Malldump
 
-Malldump attachs a process, and dumps the status of low level malloc(ptmalloc, the glibc implementation) of the process.
+Attach to a process and dump status of low level malloc(ptmalloc, the glibc implementation) of the process.
 
 ## Supported malloc implementations
 
