@@ -8,8 +8,13 @@ Attach to a process and dump status of low level malloc(ptmalloc, the glibc impl
 
 ## Supported platforms
 
+- Linux
+
+## Supported architectures
+
 - x86_64
 - aarch64
+- arm
 
 ## Usage
 

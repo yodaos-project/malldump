@@ -24,11 +24,20 @@
 #define TRAP_INST_LEN 1
 #elif defined __aarch64__
 #define R0(registers) ((registers)->regs[0])
-#define R8(registers) ((registers)->regs[8])
+#define RR(registers) ((registers)->regs[8])
 #define FP(registers) ((registers)->regs[29])
 #define LR(registers) ((registers)->regs[30])
 #define SP(registers) ((registers)->sp)
 #define PC(registers) ((registers)->pc)
+#define TRAP_INST_LEN 0 // ill inst
+#elif defined __arm__
+#define user_regs_struct user_regs
+#define R0(registers) ((registers)->uregs[0])
+#define RR(registers) ((registers)->uregs[3])
+#define FP(registers) ((registers)->uregs[11])
+#define LR(registers) ((registers)->uregs[14])
+#define SP(registers) ((registers)->uregs[13])
+#define PC(registers) ((registers)->uregs[15])
 #define TRAP_INST_LEN 0 // ill inst
 #endif
 #define TRAP_COUNT_MAX 3
@@ -125,8 +134,12 @@ static unsigned long long get_libc_base(int pid)
 	         " |head -n1 |cut -d'-' -f1", pid);
 	exec_shell(cmd, result, 256);
 
+	char *pos;
+	if ((pos=strchr(result, '\n')) != NULL)
+		*pos = '\0';
+
 	char *endptr = NULL;
-	return strtol(result, &endptr, 16);
+	return strtoll(result, &endptr, 16);
 }
 
 static int attach_process(int pid)
@@ -153,7 +166,7 @@ static int read_context(int pid, struct user_regs_struct *regs)
 
 #ifdef __x86_64__
 	rc = ptrace(PTRACE_GETREGS, pid, NULL, regs);
-#elif defined __aarch64__
+#elif defined __aarch64__ || defined __arm__
 	struct iovec iovec;
 	iovec.iov_base = regs;
 	iovec.iov_len = sizeof(*regs);
@@ -174,7 +187,7 @@ static int write_context(int pid, struct user_regs_struct *regs)
 
 #ifdef __x86_64__
 	rc = ptrace(PTRACE_SETREGS, pid, NULL, regs);
-#elif defined __aarch64__
+#elif defined __aarch64__ || defined __arm__
 	struct iovec iovec;
 	iovec.iov_base = regs;
 	iovec.iov_len = sizeof(*regs);
@@ -218,11 +231,11 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 	R0(&regs) = 0;
 	DI(&regs) = SP(&regs) + PT_LEN * 4;
 	mallinfo_addr = DI(&regs);
-#elif defined __aarch64__
+#elif defined __aarch64__ || defined __arm__
 	SP(&regs) = (SP(&regs) - 0x100) & ~0xf;
 	FP(&regs) = SP(&regs);
 	R0(&regs) = SP(&regs) + PT_LEN * 4;
-	R8(&regs) = SP(&regs) + PT_LEN * 4;
+	RR(&regs) = SP(&regs) + PT_LEN * 4;
 	mallinfo_addr = R0(&regs);
 #endif
 
@@ -232,7 +245,7 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 #ifdef __x86_64__
 	ptrace(PTRACE_POKEDATA, pid, trap_pc, (void *)0xcc);
 	ptrace(PTRACE_POKEDATA, pid, SP(&regs), (void *)trap_pc);
-#elif defined __aarch64__
+#elif defined __aarch64__ || defined __arm__
 	ptrace(PTRACE_POKEDATA, pid, trap_pc, (void *)0xe7f000f0);
 	LR(&regs) = trap_pc;
 #endif
@@ -241,9 +254,9 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 	write_context(pid, &regs);
 
 	// continue
-	LOG_DEBUG("PC: %llx\n", PC(&regs));
-	LOG_DEBUG("SP: %llx\n", SP(&regs));
-	LOG_DEBUG("trap_pc: %llx\n", trap_pc);
+	LOG_DEBUG("PC: %lx\n", PC(&regs));
+	LOG_DEBUG("SP: %lx\n", SP(&regs));
+	LOG_DEBUG("trap_pc: %lx\n", trap_pc);
 	trap_count = 0;
 	do {
 		ptrace(PTRACE_CONT, pid, NULL, NULL);
@@ -259,8 +272,8 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 			LOG_DEBUG("continued\n");
 		}
 		read_context(pid, &regs);
-		LOG_DEBUG("PC: %llx\n", PC(&regs));
-		LOG_DEBUG("SP: %llx\n", SP(&regs));
+		LOG_DEBUG("PC: %lx\n", PC(&regs));
+		LOG_DEBUG("SP: %lx\n", SP(&regs));
 
 		trap_count++;
 	} while (PC(&regs) - TRAP_INST_LEN != trap_pc &&

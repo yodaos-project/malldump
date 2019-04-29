@@ -9,8 +9,7 @@ set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 
 include_directories(src)
 include_directories(include)
-cmake_policy(SET CMP0015 NEW)
-link_directories(lib)
+link_directories(${PROJECT_SOURCE_DIR}/lib)
 
 add_subdirectory(src)
 
