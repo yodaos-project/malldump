@@ -50,6 +50,7 @@ libgtest()
 		mkdir -p $libgtest_path/build && cd $libgtest_path/build
 		cmake .. -DCMAKE_INSTALL_PREFIX:PATH=$PROJECT_DIR
 		make -j$JOBS && make install
+		[ ! $? -eq 0 ] && exit 1
 	fi
 }
 
@@ -57,6 +58,7 @@ malldump()
 {
 	mkdir -p $PROJECT_DIR/build && cd $PROJECT_DIR/build
 	cmake .. && make -j$JOBS
+	[ ! $? -eq 0 ] && exit 1
 }
 
 git submodule init
