@@ -2,6 +2,18 @@ cmake_minimum_required(VERSION 2.8)
 
 execute_process(
     COMMAND ${CMAKE_C_COMPILER} -print-file-name=libc.so.6
+    COMMAND xargs readlink -f
+    OUTPUT_VARIABLE LIBC_PATH)
+if ("${LIBC_PATH}" STREQUAL "")
+    message(FATAL_ERROR "Can't find libc.so.6")
+endif ()
+if (EXISTS "/usr/lib/debug")
+    set(LIBC_PATH "/usr/lib/debug/${LIBC_PATH}")
+endif ()
+message(STATUS "LIBC_PATH: " ${LIBC_PATH})
+
+execute_process(
+    COMMAND echo ${LIBC_PATH}
     COMMAND xargs nm
     COMMAND grep __libc_mallinfo
     COMMAND awk "{printf \"0x\"$1}"
@@ -13,7 +25,7 @@ add_definitions(-DMALLINFO_OFFSET=${MALLINFO_OFFSET})
 message(STATUS "MALLINFO_OFFSET: " ${MALLINFO_OFFSET})
 
 execute_process(
-    COMMAND ${CMAKE_C_COMPILER} -print-file-name=libc.so.6
+    COMMAND echo ${LIBC_PATH}
     COMMAND xargs nm
     COMMAND grep -e "d mp_"
     COMMAND awk "{printf \"0x\"$1}"
