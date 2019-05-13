@@ -1,0 +1,14 @@
+dist: trusty
+sudo: require
+
+compiler: gcc
+language: c
+os: linux
+
+addons:
+  apt:
+    packages:
+      - libc6-dbg
+
+script:
+  - bash ./tools/build.sh
