@@ -16,6 +16,12 @@ Attach to a process and dump status of low level malloc(ptmalloc, the glibc impl
 - aarch64
 - arm
 
+## Build
+```
+mkdir build && cd build
+cmake .. && make
+```
+
 ## Usage
 
 ```
