@@ -72,7 +72,7 @@ libcx()
 malldump()
 {
     mkdir -p $PROJECT_DIR/build && cd $PROJECT_DIR/build
-    cmake .. && make -j$JOBS && make test
+    cmake .. && make -j$JOBS
     [ ! $? -eq 0 ] && exit 1
 }
 

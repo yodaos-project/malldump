@@ -40,7 +40,7 @@ file(GLOB SRC *.c)
 file(GLOB INC *.h)
 
 add_executable(malldump ${SRC})
-target_link_libraries(malldump dl)
+target_link_libraries(malldump libcx.a)
 
 install(TARGETS malldump
 	RUNTIME DESTINATION bin

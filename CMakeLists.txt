@@ -5,16 +5,15 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -g -Wall")
-set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 
 include_directories(src)
 include_directories(include)
-link_directories(${PROJECT_SOURCE_DIR}/lib)
+link_directories(${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/lib64)
 
 add_subdirectory(src)
 
-#option(WITH_TESTS "Build all tests." ON)
-#if (WITH_TESTS)
-#	enable_testing()
-#	add_subdirectory(tests)
-#endif ()
+option(WITH_TEST "Build all tests." OFF)
+if (WITH_TEST)
+	enable_testing()
+	add_subdirectory(test)
+endif ()

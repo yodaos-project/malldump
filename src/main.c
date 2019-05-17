@@ -2,7 +2,9 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <malloc.h>
+
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/ptrace.h>
@@ -12,8 +14,9 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <elf.h>
-#include "option.h"
-#include "unilog.h"
+
+#include <extopt.h>
+#include <extlog.h>
 
 #ifdef __x86_64__
 #define R0(registers) ((registers)->rax)
@@ -68,27 +71,27 @@ struct malloc_par {
 };
 
 // TODO: implement ptmalloc
-static struct option opttab[] = {
-	INIT_OPTION_BOOL("-h", "help", false, "print this usage"),
-	INIT_OPTION_BOOL("-D", "debug", false, "debug mode [defaut: false]"),
+static struct opt opttab[] = {
+	INIT_OPT_BOOL("-h", "help", false, "print this usage"),
+	INIT_OPT_BOOL("-D", "debug", false, "debug mode [defaut: false]"),
 
-	INIT_OPTION_STRING("-t", "type", "ptmalloc",
+	INIT_OPT_STRING("-t", "type", "ptmalloc",
 	                   "type of malloc [default: ptmalloc]"),
-	INIT_OPTION_INT("-p:", "pid", 0, "pid of the target process"),
+	INIT_OPT_INT("-p:", "pid", 0, "pid of the target process"),
 
 // http://gcc.gnu.org/onlinedocs/cpp/Stringification.html
 #define MALLINFO_DESC(OFFSET) "offset of mallinfo [default: " #OFFSET "]"
 #define MALLINFO_DESC2(OFFSET) MALLINFO_DESC(OFFSET)
-	INIT_OPTION_INT("-I:", "mallinfo_offset", 0,
+	INIT_OPT_INT("-I:", "mallinfo_offset", 0,
 	                MALLINFO_DESC2(MALLINFO_OFFSET)),
 #define MP__DESC(OFFSET) "offset of mp_ [default: " #OFFSET "]"
 #define MP__DESC2(OFFSET) MP__DESC(OFFSET)
-	INIT_OPTION_INT("-P:", "mp__offset", 0, MP__DESC2(MP__OFFSET)),
+	INIT_OPT_INT("-P:", "mp__offset", 0, MP__DESC2(MP__OFFSET)),
 
-	INIT_OPTION_BOOL("-H", "human", false,
+	INIT_OPT_BOOL("-H", "human", false,
 	                 "display size of memory in"
 	                 " human mode [default: false]"),
-	INIT_OPTION_NONE(),
+	INIT_OPT_NONE(),
 };
 
 static int exec_shell(const char *cmd, char *result, size_t result_size)
@@ -348,14 +351,14 @@ static int start_injection(int pid)
 	waitpid(pid, NULL, 0);
 	read_context(pid, &regs);
 
-	if (find_option("mallinfo_offset", opttab)->value.i)
+	if (find_opt("mallinfo_offset", opttab)->value.i)
 		mallinfo_offset =
-			find_option("mallinfo_offset", opttab)->value.i;
+			find_opt("mallinfo_offset", opttab)->value.i;
 	else
 		mallinfo_offset = MALLINFO_OFFSET;
 
-	if (find_option("mp__offset", opttab)->value.i)
-		mp__offset = find_option("mp__offset", opttab)->value.i;
+	if (find_opt("mp__offset", opttab)->value.i)
+		mp__offset = find_opt("mp__offset", opttab)->value.i;
 	else
 		mp__offset = MP__OFFSET;
 
@@ -364,7 +367,7 @@ static int start_injection(int pid)
 	mp = inject_libc_mp_(pid, mp__offset);
 	printf("process cmd:    %s\n", process_cmdline);
 	printf("process pid:    %d\n", pid);
-	if (find_option("human", opttab)->value.b) {
+	if (find_opt("human", opttab)->value.b) {
 		printf("total memory:   %.1fK\n", (double)mi.arena / KILOBYTE);
 		printf("avail memory:   %.1fK\n",
 		       (double)mi.fordblks / KILOBYTE);
@@ -405,30 +408,30 @@ static int start_injection(int pid)
 int main(int argc, char *argv[])
 {
 	if (access(CONFIG_FILE, R_OK) == 0)
-		assert(option_init_from_file(opttab, CONFIG_FILE) == 0);
+		assert(opt_init_from_file(opttab, CONFIG_FILE) == 0);
 
-	if (option_init_from_arg(opttab, argc, argv)) {
-		fprintf(stderr, "%s\n", option_errmsg());
+	if (opt_init_from_arg(opttab, argc, argv)) {
+		fprintf(stderr, "%s\n", opt_errmsg());
 		exit(EXIT_FAILURE);
 	}
 
-	if (find_option("help", opttab)->value.b) {
-		option_usage(opttab);
+	if (find_opt("help", opttab)->value.b) {
+		opt_usage(opttab);
 		exit(1);
 	}
 
-	if (find_option("debug", opttab)->value.b)
-		unilog_set_level(UNILOG_DEBUG);
+	if (find_opt("debug", opttab)->value.b)
+		log_set_level(LOG_LV_DEBUG);
 	else
-		unilog_set_level(UNILOG_INFO);
+		log_set_level(LOG_LV_INFO);
 
-	int pid = find_option("pid", opttab)->value.i;
+	int pid = find_opt("pid", opttab)->value.i;
 	if (!is_process_exist(pid)) {
 		fprintf(stderr, "Process(%d) not exist, exit ...\n", pid);
 		exit(EXIT_FAILURE);
 	}
 	start_injection(pid);
 
-	option_fini(opttab);
+	opt_fini(opttab);
 	return 0;
 }
