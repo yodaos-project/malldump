@@ -1,6 +1,8 @@
 # Malldump
 
-Attach to a process and dump status of low level malloc(ptmalloc, the glibc implementation) of the process.
+[![Build Status](https://travis-ci.com/yonzkon/libcx.svg?branch=master)](https://travis-ci.com/yonzkon/libcx)
+
+Attach to a process and dump statistics of low level malloc(ptmalloc, the glibc implementation) of the process.
 
 ## Supported malloc implementations
 
