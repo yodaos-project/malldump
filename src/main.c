@@ -5,18 +5,9 @@
 #include <string.h>
 #include <malloc.h>
 
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/ptrace.h>
-#include <sys/wait.h>
-#include <sys/user.h>
-#include <sys/uio.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <elf.h>
-
 #include <extopt.h>
 #include <extlog.h>
+#include "sys.h"
 
 #ifdef __x86_64__
 #define R0(registers) ((registers)->rax)
@@ -94,117 +85,6 @@ static struct opt opttab[] = {
 	INIT_OPT_NONE(),
 };
 
-static int exec_shell(const char *cmd, char *result, size_t result_size)
-{
-	int pid;
-	int fd[2];
-
-	if (pipe(fd) == -1)
-		return -1;
-
-	pid = fork();
-	if (pid == -1) {
-		close(fd[0]);
-		close(fd[1]);
-		return -1;
-	}
-
-	if (pid == 0) {
-		close(fd[0]);
-		dup2(fd[1], STDOUT_FILENO);
-		close(fd[1]);
-		execlp("sh", "sh", "-c", cmd, NULL);
-		exit(0);
-	} else {
-		close(fd[1]);
-		int nr = 0;
-		int offset = 0;
-		while ((nr = read(fd[0], result + offset,
-		                  result_size - offset - 1)) > 0) {
-			offset += nr;
-		}
-		waitpid(pid, NULL, 0);
-		close(fd[0]);
-	}
-
-	return 0;
-}
-
-static unsigned long long get_libc_base(int pid)
-{
-	char cmd[256], result[256];
-	snprintf(cmd, 256, "cat /proc/%d/maps |grep 'libc-.*.so'"
-	         " |head -n1 |cut -d'-' -f1", pid);
-	exec_shell(cmd, result, 256);
-
-	char *pos;
-	if ((pos=strchr(result, '\n')) != NULL)
-		*pos = '\0';
-
-	char *endptr = NULL;
-	return strtoll(result, &endptr, 16);
-}
-
-static int attach_process(int pid)
-{
-	if (ptrace(PTRACE_ATTACH, pid, NULL, NULL) == -1) {
-		fprintf(stderr, "PTRACE_ATTACH, %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-	return 0;
-}
-
-static int detach_process(int pid)
-{
-	if (ptrace(PTRACE_DETACH, pid, NULL, NULL) == -1) {
-		fprintf(stderr, "PTRACE_DETACH, %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-	return 0;
-}
-
-static int read_context(int pid, struct user_regs_struct *regs)
-{
-	int rc;
-
-#ifdef __x86_64__
-	rc = ptrace(PTRACE_GETREGS, pid, NULL, regs);
-#elif defined __aarch64__ || defined __arm__
-	struct iovec iovec;
-	iovec.iov_base = regs;
-	iovec.iov_len = sizeof(*regs);
-	rc = ptrace(PTRACE_GETREGSET, pid, (void *)NT_PRSTATUS, &iovec);
-#endif
-
-	if (rc == -1) {
-		fprintf(stderr, "PTRACE_GETREGS, %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-
-	return 0;
-}
-
-static int write_context(int pid, struct user_regs_struct *regs)
-{
-	int rc;
-
-#ifdef __x86_64__
-	rc = ptrace(PTRACE_SETREGS, pid, NULL, regs);
-#elif defined __aarch64__ || defined __arm__
-	struct iovec iovec;
-	iovec.iov_base = regs;
-	iovec.iov_len = sizeof(*regs);
-	rc = ptrace(PTRACE_SETREGSET, pid, (void *)NT_PRSTATUS, &iovec);
-#endif
-
-	if (rc == -1) {
-		fprintf(stderr, "PTRACE_SETREGS, %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-
-	return 0;
-}
-
 static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 {
 	/*
@@ -216,8 +96,8 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 	 */
 
 	struct mallinfo mi;
-	unsigned long long mallinfo_addr = 0;
-	unsigned long long base = get_libc_base(pid);
+	unsigned long mallinfo_addr = 0;
+	unsigned long base = get_libc_base(pid);
 	struct user_regs_struct regs;
 	long trap_pc;
 	long trap_pc_text;
@@ -227,7 +107,7 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 	// TODO: check return value of ptrace
 
 	// set regs
-	read_context(pid, &regs);
+	read_process_context(pid, &regs);
 #ifdef __x86_64__
 	SP(&regs) = ((SP(&regs) - 0x100) & ~0xf) + PT_LEN;
 	BP(&regs) = SP(&regs);
@@ -244,17 +124,17 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 
 	// set trap
 	trap_pc = PC(&regs);
-	trap_pc_text = ptrace(PTRACE_PEEKDATA, pid, trap_pc, NULL);
+	trap_pc_text = read_process_data(pid, (void *)trap_pc);
 #ifdef __x86_64__
-	ptrace(PTRACE_POKEDATA, pid, trap_pc, (void *)0xcc);
-	ptrace(PTRACE_POKEDATA, pid, SP(&regs), (void *)trap_pc);
+	write_process_data(pid, (void *)trap_pc, (void *)0xcc);
+	write_process_data(pid, (void *)SP(&regs), (void *)trap_pc);
 #elif defined __aarch64__ || defined __arm__
-	ptrace(PTRACE_POKEDATA, pid, trap_pc, (void *)0xe7f000f0);
+	write_process_data(pid, (void *)trap_pc, (void *)0xe7f000f0);
 	LR(&regs) = trap_pc;
 #endif
 
 	PC(&regs) = base + offset;
-	write_context(pid, &regs);
+	write_process_context(pid, &regs);
 
 	// continue
 	LOG_DEBUG("PC: %lx\n", PC(&regs));
@@ -262,31 +142,20 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 	LOG_DEBUG("trap_pc: %lx\n", trap_pc);
 	trap_count = 0;
 	do {
-		ptrace(PTRACE_CONT, pid, NULL, NULL);
-		int status;
-		waitpid(pid, &status, 0);
-		if (WIFEXITED(status)) {
-			LOG_DEBUG("exited, status=%d\n", WEXITSTATUS(status));
-		} else if (WIFSIGNALED(status)) {
-			LOG_DEBUG("killed by signal %d\n", WTERMSIG(status));
-		} else if (WIFSTOPPED(status)) {
-			LOG_DEBUG("stopped by signal %d\n", WSTOPSIG(status));
-		} else if (WIFCONTINUED(status)) {
-			LOG_DEBUG("continued\n");
-		}
-		read_context(pid, &regs);
+		continue_process(pid);
+		wait_process(pid);
+		read_process_context(pid, &regs);
 		LOG_DEBUG("PC: %lx\n", PC(&regs));
 		LOG_DEBUG("SP: %lx\n", SP(&regs));
 
 		trap_count++;
 	} while (PC(&regs) - TRAP_INST_LEN != trap_pc &&
 	         trap_count < TRAP_COUNT_MAX);
-	ptrace(PTRACE_POKEDATA, pid, trap_pc, (void *)trap_pc_text);
+	write_process_data(pid, (void *)trap_pc, (void *)trap_pc_text);
 
 	// get result of mallinfo
 	for (int i = 0; i < sizeof(struct mallinfo) / PT_LEN; i++) {
-		data = ptrace(PTRACE_PEEKDATA, pid,
-		              mallinfo_addr + i * PT_LEN, NULL);
+		data = read_process_data(pid, (void *)mallinfo_addr + i * PT_LEN);
 		memcpy((char *)&mi + i * PT_LEN, &data, sizeof(data));
 	}
 
@@ -295,47 +164,17 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 
 static struct malloc_par inject_libc_mp_(int pid, long offset)
 {
-	unsigned long long base = get_libc_base(pid);
-	unsigned long long mp__addr = base + offset;
+	unsigned long base = get_libc_base(pid);
+	unsigned long mp__addr = base + offset;
 	struct malloc_par mp;
 	long data;
 
 	for (int i = 0; i < sizeof(struct malloc_par) / PT_LEN; i++) {
-		data = ptrace(PTRACE_PEEKDATA, pid,
-		              mp__addr + i * PT_LEN, NULL);
+		data = read_process_data(pid, (void *)mp__addr + i * PT_LEN);
 		memcpy((char *)&mp + i * PT_LEN, &data, sizeof(data));
 	}
 
 	return mp;
-}
-
-static int is_process_exist(int pid)
-{
-	char buf[256];
-
-	snprintf(buf, sizeof(buf), "/proc/%d/", pid);
-	if (access(buf, R_OK) == 0)
-		return 1;
-	else
-		return 0;
-}
-
-static int get_process_cmdline(int pid, char *buf, size_t size)
-{
-	// TODO: error check
-
-	snprintf(buf, size, "/proc/%d/cmdline", pid);
-
-	int fd = open(buf, O_RDONLY);
-	int nr, offset = 0;
-	while ((nr = read(fd, buf + offset, size - offset)) > 0)
-		offset += nr;
-	close(fd);
-
-	if (offset > strlen(buf))
-		buf[strlen(buf)] = ' ';
-
-	return 0;
 }
 
 static int start_injection(int pid)
@@ -348,8 +187,8 @@ static int start_injection(int pid)
 	long mp__offset;
 
 	attach_process(pid);
-	waitpid(pid, NULL, 0);
-	read_context(pid, &regs);
+	wait_process(pid);
+	read_process_context(pid, &regs);
 
 	if (opt_int(find_opt("mallinfo_offset", opttab)))
 		mallinfo_offset = opt_int(find_opt("mallinfo_offset", opttab));
@@ -398,7 +237,7 @@ static int start_injection(int pid)
 		printf("mmap threshold: %lu\n", mp.mmap_threshold);
 	}
 
-	write_context(pid, &regs);
+	write_process_context(pid, &regs);
 	detach_process(pid);
 
 	return 0;
@@ -406,7 +245,7 @@ static int start_injection(int pid)
 
 int main(int argc, char *argv[])
 {
-	if (access(CONFIG_FILE, R_OK) == 0)
+	if (is_file_exist(CONFIG_FILE))
 		assert(opt_init_from_file(opttab, CONFIG_FILE) == 0);
 
 	if (opt_init_from_arg(opttab, argc, argv)) {
