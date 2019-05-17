@@ -45,23 +45,11 @@ do_init()
     [ ! -e $PROJECT_DIR/lib ] && mkdir -p $PROJECT_DIR/lib
 }
 
-cmocka()
-{
-    cmocka_path=$PROJECT_DIR/deps/cmocka
-
-    if [ ! "$(find $PROJECT_DIR/lib -maxdepth 1 -name ${FUNCNAME[0]}*)" ]; then
-        mkdir -p $cmocka_path/build && cd $cmocka_path/build
-        cmake .. -DCMAKE_INSTALL_PREFIX:PATH=$PROJECT_DIR
-        make -j$JOBS && make install
-        [ ! $? -eq 0 ] && exit 1
-    fi
-}
-
 libcx()
 {
     libcx_path=$PROJECT_DIR/deps/libcx
 
-    if [ ! "$(find $PROJECT_DIR/lib -maxdepth 1 -name ${FUNCNAME[0]}*)" ]; then
+    if [ ! "$(find $PROJECT_DIR/lib* -maxdepth 1 -name *${FUNCNAME[0]}*)" ]; then
         mkdir -p $libcx_path/build && cd $libcx_path/build
         cmake .. -DCMAKE_INSTALL_PREFIX:PATH=$PROJECT_DIR
         make -j$JOBS && make install
@@ -77,6 +65,5 @@ malldump()
 }
 
 do_init
-do_build cmocka
 do_build libcx
 do_build malldump

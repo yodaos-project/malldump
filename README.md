@@ -20,8 +20,7 @@ Attach to a process and dump statistics of low level malloc(ptmalloc, the glibc 
 
 ## Build
 ```
-mkdir build && cd build
-cmake .. && make
+./tools/build.sh
 ```
 
 ## Usage
