@@ -351,14 +351,13 @@ static int start_injection(int pid)
 	waitpid(pid, NULL, 0);
 	read_context(pid, &regs);
 
-	if (find_opt("mallinfo_offset", opttab)->value.i)
-		mallinfo_offset =
-			find_opt("mallinfo_offset", opttab)->value.i;
+	if (opt_int(find_opt("mallinfo_offset", opttab)))
+		mallinfo_offset = opt_int(find_opt("mallinfo_offset", opttab));
 	else
 		mallinfo_offset = MALLINFO_OFFSET;
 
-	if (find_opt("mp__offset", opttab)->value.i)
-		mp__offset = find_opt("mp__offset", opttab)->value.i;
+	if (opt_int(find_opt("mp__offset", opttab)))
+		mp__offset = opt_int(find_opt("mp__offset", opttab));
 	else
 		mp__offset = MP__OFFSET;
 
@@ -367,7 +366,7 @@ static int start_injection(int pid)
 	mp = inject_libc_mp_(pid, mp__offset);
 	printf("process cmd:    %s\n", process_cmdline);
 	printf("process pid:    %d\n", pid);
-	if (find_opt("human", opttab)->value.b) {
+	if (opt_bool(find_opt("human", opttab))) {
 		printf("total memory:   %.1fK\n", (double)mi.arena / KILOBYTE);
 		printf("avail memory:   %.1fK\n",
 		       (double)mi.fordblks / KILOBYTE);
@@ -415,17 +414,17 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	if (find_opt("help", opttab)->value.b) {
+	if (opt_bool(find_opt("help", opttab))) {
 		opt_usage(opttab);
 		exit(1);
 	}
 
-	if (find_opt("debug", opttab)->value.b)
+	if (opt_bool(find_opt("debug", opttab)))
 		log_set_level(LOG_LV_DEBUG);
 	else
 		log_set_level(LOG_LV_INFO);
 
-	int pid = find_opt("pid", opttab)->value.i;
+	int pid = opt_int(find_opt("pid", opttab));
 	if (!is_process_exist(pid)) {
 		fprintf(stderr, "Process(%d) not exist, exit ...\n", pid);
 		exit(EXIT_FAILURE);
