@@ -7,6 +7,7 @@
 #include <extlog.h>
 #include "regs.h"
 #include "sys.h"
+#include "ptmalloc.h"
 
 #ifndef MALLINFO_OFFSET
 #error "MALLINFO_OFFSET is not defined"
@@ -14,6 +15,10 @@
 
 #ifndef MP__OFFSET
 #error "MP__OFFSET is not defined"
+#endif
+
+#ifndef NARENAS_OFFSET
+#error "NARENAS_OFFSET is not defined"
 #endif
 
 #define PT_LEN sizeof(void *)
@@ -31,7 +36,22 @@ struct malloc_par {
 	/* ... */
 };
 
-static struct mallinfo inject_libc_mallinfo(int pid, long offset)
+static int
+read_process_data_at_offset(int pid, size_t offset, void *out, size_t out_size)
+{
+	unsigned long base = get_libc_base(pid);
+	unsigned long addr = base + offset;
+	long data;
+
+	for (int i = 0; i < out_size / PT_LEN; i++) {
+		data = read_process_data(pid, (void *)addr + i * PT_LEN);
+		memcpy(out + i * PT_LEN, &data, sizeof(data));
+	}
+
+	return 0;
+}
+
+static struct mallinfo inject_libc_mallinfo(int pid, size_t offset)
 {
 	/*
 	 * 0x0 -> rip
@@ -108,43 +128,36 @@ static struct mallinfo inject_libc_mallinfo(int pid, long offset)
 	return mi;
 }
 
-static struct malloc_par inject_libc_mp_(int pid, long offset)
-{
-	unsigned long base = get_libc_base(pid);
-	unsigned long mp__addr = base + offset;
-	struct malloc_par mp;
-	long data;
-
-	for (int i = 0; i < sizeof(struct malloc_par) / PT_LEN; i++) {
-		data = read_process_data(pid, (void *)mp__addr + i * PT_LEN);
-		memcpy((char *)&mp + i * PT_LEN, &data, sizeof(data));
-	}
-
-	return mp;
-}
-
-int ptmalloc_injection(int pid, long mallinfo_offset, long mp__offset, int human)
+int ptmalloc_injection(int pid, struct ptmalloc_offset *offset, int human)
 {
 	struct user_regs_struct regs;
 	char process_cmdline[256];
 	struct mallinfo mi;
-	struct malloc_par mp;
+	struct malloc_par mp_;
+	size_t narenas;
 
 	attach_process(pid);
 	wait_process(pid);
 	read_process_context(pid, &regs);
 
-	if (mallinfo_offset == 0)
-		mallinfo_offset = MALLINFO_OFFSET;
+	if (offset->mallinfo == 0)
+		offset->mallinfo = MALLINFO_OFFSET;
 
-	if (mp__offset == 0)
-		mp__offset = MP__OFFSET;
+	if (offset->mp_ == 0)
+		offset->mp_ = MP__OFFSET;
+
+	if (offset->narenas == 0)
+		offset->narenas = NARENAS_OFFSET;
 
 	get_process_cmdline(pid, process_cmdline, sizeof(process_cmdline));
-	mi = inject_libc_mallinfo(pid, mallinfo_offset);
-	mp = inject_libc_mp_(pid, mp__offset);
+	mi = inject_libc_mallinfo(pid, offset->mallinfo);
+	read_process_data_at_offset(pid, offset->mp_, &mp_, sizeof(mp_));
+	read_process_data_at_offset(pid, offset->narenas,
+	                            &narenas, sizeof(narenas));
+
 	printf("process cmd:    %s\n", process_cmdline);
 	printf("process pid:    %d\n", pid);
+	printf("arena number:   %lu\n", narenas);
 	if (human) {
 		printf("total memory:   %.1fK\n", (double)mi.arena / KILOBYTE);
 		printf("avail memory:   %.1fK\n",
@@ -159,9 +172,9 @@ int ptmalloc_injection(int pid, long mallinfo_offset, long mp__offset, int human
 		printf("mmapped chunks: %d\n", mi.hblks);
 		printf("mmapped memory: %.1fK\n", (double)mi.hblkhd / KILOBYTE);
 		printf("trim threshold: %.1fK\n",
-		       (double)mp.trim_threshold / KILOBYTE);
+		       (double)mp_.trim_threshold / KILOBYTE);
 		printf("mmap threshold: %.1fK\n",
-		       (double)mp.mmap_threshold / KILOBYTE);
+		       (double)mp_.mmap_threshold / KILOBYTE);
 	} else {
 		printf("total memory:   %d\n", mi.arena);
 		printf("avail memory:   %d\n", mi.fordblks);
@@ -173,8 +186,8 @@ int ptmalloc_injection(int pid, long mallinfo_offset, long mp__offset, int human
 		printf("fastbin memory: %d\n", mi.fsmblks);
 		printf("mmapped chunks: %d\n", mi.hblks);
 		printf("mmapped memory: %d\n", mi.hblkhd);
-		printf("trim threshold: %lu\n", mp.trim_threshold);
-		printf("mmap threshold: %lu\n", mp.mmap_threshold);
+		printf("trim threshold: %lu\n", mp_.trim_threshold);
+		printf("mmap threshold: %lu\n", mp_.mmap_threshold);
 	}
 
 	write_process_context(pid, &regs);

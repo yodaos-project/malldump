@@ -25,6 +25,9 @@ static struct opt opttab[] = {
 #define MP__DESC(OFFSET) "offset of mp_ [default: " #OFFSET "]"
 #define MP__DESC2(OFFSET) MP__DESC(OFFSET)
 	INIT_OPT_INT("-P:", "mp__offset", 0, MP__DESC2(MP__OFFSET)),
+#define NARENAS_DESC(OFFSET) "offset of narenas [default: " #OFFSET "]"
+#define NARENAS_DESC2(OFFSET) NARENAS_DESC(OFFSET)
+	INIT_OPT_INT("-P:", "narenas_offset", 0, NARENAS_DESC2(NARENAS_OFFSET)),
 
 	INIT_OPT_BOOL("-H", "human", false,
 	              "display size of memory in"
@@ -65,9 +68,11 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	ptmalloc_injection(pid, opt_int(find_opt("mallinfo_offset", opttab)),
-	                   opt_int(find_opt("mp__offset", opttab)),
-	                   opt_bool(find_opt("human", opttab)));
+	struct ptmalloc_offset offset;
+	offset.mallinfo = opt_int(find_opt("mallinfo_offset", opttab));
+	offset.mp_ = opt_int(find_opt("mp__offset", opttab));
+	offset.narenas = opt_int(find_opt("narenas_offset", opttab));
+	ptmalloc_injection(pid, &offset, opt_bool(find_opt("human", opttab)));
 
 	opt_fini(opttab);
 	return 0;
