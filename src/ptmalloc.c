@@ -21,7 +21,6 @@
 #error "NARENAS_OFFSET is not defined"
 #endif
 
-#define PT_LEN sizeof(void *)
 #define KILOBYTE 1024
 #define MEGABYTE (1024 * 1024)
 
@@ -36,22 +35,7 @@ struct malloc_par {
 	/* ... */
 };
 
-static int
-read_process_data_at_offset(int pid, size_t offset, void *out, size_t out_size)
-{
-	unsigned long base = get_libc_base(pid);
-	unsigned long addr = base + offset;
-	long data;
-
-	for (int i = 0; i < out_size / PT_LEN; i++) {
-		data = read_process_data(pid, (void *)addr + i * PT_LEN);
-		memcpy(out + i * PT_LEN, &data, sizeof(data));
-	}
-
-	return 0;
-}
-
-static struct mallinfo inject_libc_mallinfo(int pid, size_t offset)
+static struct mallinfo inject_libc_mallinfo(int pid, size_t addr)
 {
 	/*
 	 * 0x0 -> rip
@@ -63,12 +47,10 @@ static struct mallinfo inject_libc_mallinfo(int pid, size_t offset)
 
 	struct mallinfo mi;
 	unsigned long mallinfo_addr = 0;
-	unsigned long base = get_libc_base(pid);
 	struct user_regs_struct regs;
 	long trap_pc;
 	long trap_pc_text;
 	long trap_count;
-	long data;
 
 	// TODO: check return value of ptrace
 
@@ -90,16 +72,16 @@ static struct mallinfo inject_libc_mallinfo(int pid, size_t offset)
 
 	// set trap
 	trap_pc = PC(&regs);
-	trap_pc_text = read_process_data(pid, (void *)trap_pc);
+	read_process_data(pid, trap_pc, &trap_pc_text, sizeof(trap_pc_text));
 #ifdef __x86_64__
-	write_process_data(pid, (void *)trap_pc, (void *)0xcc);
-	write_process_data(pid, (void *)SP(&regs), (void *)trap_pc);
+	write_process_data(pid, trap_pc, (void *)0xcc, PT_LEN);
+	write_process_data(pid, SP(&regs), (void *)trap_pc, PT_LEN);
 #elif defined __aarch64__ || defined __arm__
-	write_process_data(pid, (void *)trap_pc, (void *)0xe7f000f0);
+	write_process_data(pid, trap_pc, (void *)0xe7f000f0, PT_LEN);
 	LR(&regs) = trap_pc;
 #endif
 
-	PC(&regs) = base + offset;
+	PC(&regs) = addr;
 	write_process_context(pid, &regs);
 
 	// continue
@@ -117,20 +99,17 @@ static struct mallinfo inject_libc_mallinfo(int pid, size_t offset)
 		trap_count++;
 	} while (PC(&regs) - TRAP_INST_LEN != trap_pc &&
 	         trap_count < TRAP_COUNT_MAX);
-	write_process_data(pid, (void *)trap_pc, (void *)trap_pc_text);
+	write_process_data(pid, trap_pc, (void *)trap_pc_text, PT_LEN);
 
 	// get result of mallinfo
-	for (int i = 0; i < sizeof(struct mallinfo) / PT_LEN; i++) {
-		data = read_process_data(pid, (void *)mallinfo_addr + i * PT_LEN);
-		memcpy((char *)&mi + i * PT_LEN, &data, sizeof(data));
-	}
-
+	read_process_data(pid, mallinfo_addr, &mi, sizeof(mi));
 	return mi;
 }
 
 int ptmalloc_injection(int pid, struct ptmalloc_offset *offset, int human)
 {
 	struct user_regs_struct regs;
+	size_t base;
 	char process_cmdline[256] = {0};
 	int process_nr_thread;
 	struct mallinfo mi;
@@ -150,12 +129,13 @@ int ptmalloc_injection(int pid, struct ptmalloc_offset *offset, int human)
 	if (offset->narenas == 0)
 		offset->narenas = NARENAS_OFFSET;
 
+	base = get_libc_base(pid);
 	get_process_cmdline(pid, process_cmdline, sizeof(process_cmdline));
 	process_nr_thread = get_process_nr_thread(pid);
-	mi = inject_libc_mallinfo(pid, offset->mallinfo);
-	read_process_data_at_offset(pid, offset->mp_, &mp_, sizeof(mp_));
-	read_process_data_at_offset(pid, offset->narenas,
-	                            &narenas, sizeof(narenas));
+	mi = inject_libc_mallinfo(pid, base + offset->mallinfo);
+	read_process_data(pid, base + offset->mp_, &mp_, sizeof(mp_));
+	read_process_data(pid, base + offset->narenas,
+	                  &narenas, sizeof(narenas));
 
 	printf("Process cmd:    %s\n", process_cmdline);
 	printf("Process pid:    %d\n", pid);

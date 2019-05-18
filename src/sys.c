@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,7 @@
 #include <sys/uio.h>
 #include <elf.h>
 #include <extlog.h>
+#include "sys.h"
 
 int exec_shell(const char *cmd, char *result, size_t result_size)
 {
@@ -49,7 +51,7 @@ int exec_shell(const char *cmd, char *result, size_t result_size)
 	return 0;
 }
 
-unsigned long long get_libc_base(pid_t pid)
+size_t get_libc_base(pid_t pid)
 {
 	char cmd[256], result[256];
 	snprintf(cmd, 256, "cat /proc/%d/maps |grep 'libc-.*.so'"
@@ -160,7 +162,7 @@ int wait_process(pid_t pid)
 	return status;
 }
 
-long read_process_context(pid_t pid, struct user_regs_struct *regs)
+int read_process_context(pid_t pid, struct user_regs_struct *regs)
 {
 	long rc;
 
@@ -181,7 +183,7 @@ long read_process_context(pid_t pid, struct user_regs_struct *regs)
 	return 0;
 }
 
-long write_process_context(pid_t pid, struct user_regs_struct *regs)
+int write_process_context(pid_t pid, struct user_regs_struct *regs)
 {
 	long rc;
 
@@ -202,12 +204,28 @@ long write_process_context(pid_t pid, struct user_regs_struct *regs)
 	return 0;
 }
 
-long read_process_data(pid_t pid, void *addr)
+int read_process_data(pid_t pid, size_t addr, void *out, size_t out_size)
 {
-	return ptrace(PTRACE_PEEKDATA, pid, addr, NULL);
+	long data;
+
+	assert(out_size % PT_LEN == 0);
+
+	for (int i = 0; i < out_size / PT_LEN; i++) {
+		data = ptrace(PTRACE_PEEKDATA, pid,
+		              (void *)addr + i * PT_LEN, NULL);
+		memcpy(out + i * PT_LEN, &data, sizeof(data));
+	}
+
+	return 0;
 }
 
-long write_process_data(pid_t pid, void *addr, void *data)
+int write_process_data(pid_t pid, size_t addr, void *data, size_t size)
 {
-	return ptrace(PTRACE_POKEDATA, pid, addr, data);
+	assert(size % PT_LEN == 0);
+
+	for (int i = 0; i < size / PT_LEN; i++)
+		ptrace(PTRACE_POKEDATA, pid, (void *)addr + i * PT_LEN,
+		       data + i * PT_LEN);
+
+	return 0;
 }
