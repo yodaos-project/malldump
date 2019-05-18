@@ -57,6 +57,7 @@ Mmapped chunks: 1
 Mmapped memory: 516.0K
 Trim threshold: 128.0K
 Mmap threshold: 128.0K
+Arena max:      16
 ```
 - Arenas: Number of created arenas.
 - Total memory: Total memory that allocated from OS through brk() or mmap().
@@ -69,3 +70,4 @@ Mmap threshold: 128.0K
 - Mmapped memory: Total memory of mmapped chunks.
 - Trim threshold: The maximum amount of unused top-most memory to keep before releasing via malloc_trim in free().
 - Mmap_threshold: The request size threshold for using mmap() to service a request. Requests of at least this size that cannot be allocated using already-existing space will be serviced via mmap.
+- Arena max: The maximum number of arenas. If not set manually, the default formula is nr_cpu * (sizeof(long) == 4 ? 2 : 8).

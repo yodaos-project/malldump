@@ -111,7 +111,7 @@ int ptmalloc_injection(int pid, struct ptmalloc_offset *offset, int human)
 	struct user_regs_struct regs;
 	size_t base;
 	char process_cmdline[256] = {0};
-	int process_nr_thread;
+	int process_threads;
 	struct mallinfo mi;
 	struct malloc_par mp_;
 	size_t narenas;
@@ -131,7 +131,7 @@ int ptmalloc_injection(int pid, struct ptmalloc_offset *offset, int human)
 
 	base = get_libc_base(pid);
 	get_process_cmdline(pid, process_cmdline, sizeof(process_cmdline));
-	process_nr_thread = get_process_nr_thread(pid);
+	process_threads = get_process_threads(pid);
 	mi = inject_libc_mallinfo(pid, base + offset->mallinfo);
 	read_process_data(pid, base + offset->mp_, &mp_, sizeof(mp_));
 	read_process_data(pid, base + offset->narenas,
@@ -139,7 +139,7 @@ int ptmalloc_injection(int pid, struct ptmalloc_offset *offset, int human)
 
 	printf("Process cmd:    %s\n", process_cmdline);
 	printf("Process pid:    %d\n", pid);
-	printf("Threads:        %d\n", process_nr_thread);
+	printf("Threads:        %d\n", process_threads);
 	printf("Arenas:         %lu\n", narenas);
 	if (human) {
 		printf("Total memory:   %.1fK\n", (double)mi.arena / KILOBYTE);
@@ -172,6 +172,11 @@ int ptmalloc_injection(int pid, struct ptmalloc_offset *offset, int human)
 		printf("Trim threshold: %lu\n", mp_.trim_threshold);
 		printf("Mmap threshold: %lu\n", mp_.mmap_threshold);
 	}
+	if (mp_.arena_max)
+		printf("Arena max:      %lu\n", mp_.arena_max);
+	else
+		printf("Arena max:      %d\n",
+		       (sizeof(long) == 4 ? 2 : 8) * get_procs());
 
 	write_process_context(pid, &regs);
 	detach_process(pid);
