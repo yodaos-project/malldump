@@ -33,6 +33,7 @@ usage:
   -p <arg>     pid of the target process
   -I <arg>     offset of mallinfo [default: ...]
   -P <arg>     offset of mp_ [default: ...]
+  -A <arg>     offset of narenas [default: ...]
   -H           display size of memory in human mode [default: false]
 ```
 ```

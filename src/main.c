@@ -27,7 +27,7 @@ static struct opt opttab[] = {
 	INIT_OPT_INT("-P:", "mp__offset", 0, MP__DESC2(MP__OFFSET)),
 #define NARENAS_DESC(OFFSET) "offset of narenas [default: " #OFFSET "]"
 #define NARENAS_DESC2(OFFSET) NARENAS_DESC(OFFSET)
-	INIT_OPT_INT("-P:", "narenas_offset", 0, NARENAS_DESC2(NARENAS_OFFSET)),
+	INIT_OPT_INT("-A:", "narenas_offset", 0, NARENAS_DESC2(NARENAS_OFFSET)),
 
 	INIT_OPT_BOOL("-H", "human", false,
 	              "display size of memory in"
