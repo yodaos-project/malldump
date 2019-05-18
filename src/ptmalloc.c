@@ -131,7 +131,7 @@ static struct mallinfo inject_libc_mallinfo(int pid, size_t offset)
 int ptmalloc_injection(int pid, struct ptmalloc_offset *offset, int human)
 {
 	struct user_regs_struct regs;
-	char process_cmdline[256];
+	char process_cmdline[256] = {0};
 	int process_nr_thread;
 	struct mallinfo mi;
 	struct malloc_par mp_;

@@ -95,7 +95,8 @@ int get_process_cmdline(pid_t pid, char *buf, size_t size)
 		offset += nr;
 	close(fd);
 
-	if (offset > strlen(buf))
+	// FIXME: dangerous code?
+	while (offset > strlen(buf))
 		buf[strlen(buf)] = ' ';
 
 	return 0;
