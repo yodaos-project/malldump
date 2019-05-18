@@ -132,6 +132,7 @@ int ptmalloc_injection(int pid, struct ptmalloc_offset *offset, int human)
 {
 	struct user_regs_struct regs;
 	char process_cmdline[256];
+	int process_nr_thread;
 	struct mallinfo mi;
 	struct malloc_par mp_;
 	size_t narenas;
@@ -150,44 +151,46 @@ int ptmalloc_injection(int pid, struct ptmalloc_offset *offset, int human)
 		offset->narenas = NARENAS_OFFSET;
 
 	get_process_cmdline(pid, process_cmdline, sizeof(process_cmdline));
+	process_nr_thread = get_process_nr_thread(pid);
 	mi = inject_libc_mallinfo(pid, offset->mallinfo);
 	read_process_data_at_offset(pid, offset->mp_, &mp_, sizeof(mp_));
 	read_process_data_at_offset(pid, offset->narenas,
 	                            &narenas, sizeof(narenas));
 
-	printf("process cmd:    %s\n", process_cmdline);
-	printf("process pid:    %d\n", pid);
-	printf("arena number:   %lu\n", narenas);
+	printf("Process cmd:    %s\n", process_cmdline);
+	printf("Process pid:    %d\n", pid);
+	printf("Threads:        %d\n", process_nr_thread);
+	printf("Arenas:         %lu\n", narenas);
 	if (human) {
-		printf("total memory:   %.1fK\n", (double)mi.arena / KILOBYTE);
-		printf("avail memory:   %.1fK\n",
+		printf("Total memory:   %.1fK\n", (double)mi.arena / KILOBYTE);
+		printf("Avail memory:   %.1fK\n",
 		       (double)mi.fordblks / KILOBYTE);
-		printf("used memory:    %.1fK\n",
+		printf("Used memory:    %.1fK\n",
 		       (double)mi.uordblks / KILOBYTE);
-		printf("used memory%%:   %.2f%%\n",
+		printf("Used memory%%:   %.2f%%\n",
 		       (double)mi.uordblks / mi.arena * 100);
-		printf("free chunks:    %d\n", mi.ordblks);
-		printf("fastbin chunks: %d\n", mi.smblks);
-		printf("fastbin memory: %.1fK\n", (double)mi.fsmblks / KILOBYTE);
-		printf("mmapped chunks: %d\n", mi.hblks);
-		printf("mmapped memory: %.1fK\n", (double)mi.hblkhd / KILOBYTE);
-		printf("trim threshold: %.1fK\n",
+		printf("Free chunks:    %d\n", mi.ordblks);
+		printf("Fastbin chunks: %d\n", mi.smblks);
+		printf("Fastbin memory: %.1fK\n", (double)mi.fsmblks / KILOBYTE);
+		printf("Mmapped chunks: %d\n", mi.hblks);
+		printf("Mmapped memory: %.1fK\n", (double)mi.hblkhd / KILOBYTE);
+		printf("Trim threshold: %.1fK\n",
 		       (double)mp_.trim_threshold / KILOBYTE);
-		printf("mmap threshold: %.1fK\n",
+		printf("Mmap threshold: %.1fK\n",
 		       (double)mp_.mmap_threshold / KILOBYTE);
 	} else {
-		printf("total memory:   %d\n", mi.arena);
-		printf("avail memory:   %d\n", mi.fordblks);
-		printf("used memory:    %d\n", mi.uordblks);
-		printf("used memory%%:   %.2f%%\n",
+		printf("Total memory:   %d\n", mi.arena);
+		printf("Avail memory:   %d\n", mi.fordblks);
+		printf("Used memory:    %d\n", mi.uordblks);
+		printf("Used memory%%:   %.2f%%\n",
 		       (double)mi.uordblks / mi.arena * 100);
-		printf("free chunks:    %d\n", mi.ordblks);
-		printf("fastbin chunks: %d\n", mi.smblks);
-		printf("fastbin memory: %d\n", mi.fsmblks);
-		printf("mmapped chunks: %d\n", mi.hblks);
-		printf("mmapped memory: %d\n", mi.hblkhd);
-		printf("trim threshold: %lu\n", mp_.trim_threshold);
-		printf("mmap threshold: %lu\n", mp_.mmap_threshold);
+		printf("Free chunks:    %d\n", mi.ordblks);
+		printf("Fastbin chunks: %d\n", mi.smblks);
+		printf("Fastbin memory: %d\n", mi.fsmblks);
+		printf("Mmapped chunks: %d\n", mi.hblks);
+		printf("Mmapped memory: %d\n", mi.hblkhd);
+		printf("Trim threshold: %lu\n", mp_.trim_threshold);
+		printf("Mmap threshold: %lu\n", mp_.mmap_threshold);
 	}
 
 	write_process_context(pid, &regs);

@@ -14,6 +14,7 @@ int is_file_exist(const char *path);
 
 int is_process_exist(pid_t pid);
 int get_process_cmdline(pid_t pid, char *buf, size_t size);
+int get_process_nr_thread(pid_t pid);
 
 int attach_process(pid_t pid);
 int detach_process(pid_t pid);

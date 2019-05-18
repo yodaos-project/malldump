@@ -101,6 +101,19 @@ int get_process_cmdline(pid_t pid, char *buf, size_t size)
 	return 0;
 }
 
+int get_process_nr_thread(pid_t pid)
+{
+	char cmd[256], result[256];
+	snprintf(cmd, 256, "ls /proc/%d/task |wc -l", pid);
+	exec_shell(cmd, result, 256);
+
+	char *pos;
+	if ((pos=strchr(result, '\n')) != NULL)
+		*pos = '\0';
+
+	return strtol(result, NULL, 10);
+}
+
 int attach_process(pid_t pid)
 {
 	if (ptrace(PTRACE_ATTACH, pid, NULL, NULL) == -1) {
