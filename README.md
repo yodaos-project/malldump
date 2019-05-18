@@ -42,28 +42,30 @@ malldump -H -p <pid>
 ## Outputs
 
 ```
-process cmd:    sshd: root@pts/0
-process pid:    447
-total memory:   488.0K
-avail memory:   172.2K
-used memory:    315.8K
-used memory%:   64.71%
-free chunks:    7
-fastbin chunks: 0
-fastbin memory: 0.0K
-mmapped chunks: 1
-mmapped memory: 320.0K
-trim threshold: 632.0K
-mmap threshold: 316.0K
+Process cmd:    nmap -sP 172.17.0.0/16
+Process pid:    49457
+Threads:        1
+Arenas:         1
+Total memory:   10248.0K
+Avail memory:   403.1K
+Used memory:    9844.9K
+Used memory%:   96.07%
+Free chunks:    2
+Fastbin chunks: 3
+Fastbin memory: 0.2K
+Mmapped chunks: 1
+Mmapped memory: 516.0K
+Trim threshold: 128.0K
+Mmap threshold: 128.0K
 ```
-
-- total memory: Total memory that allocated from OS through brk() or mmap().
-- avail memory: Memory that kept by low level malloc but not used by application.
-- used memory: Memory that used by application through malloc().
-- used memory%: used memory / total memory.
-- free chunks: Chunks that linked in the double-linked list of bins except fastbins.
-- fastbin chunks: Chunks that linked in the single-linked list of fastbins.
-- mmapped chunks: Chunks that allocated from OS directly by mmap().
-- mmapped memory: Total memory of mmapped chunks.
-- trim threshold: The maximum amount of unused top-most memory to keep before releasing via malloc_trim in free().
-- mmap_threshold: The request size threshold for using mmap() to service a request. Requests of at least this size that cannot be allocated using already-existing space will be serviced via mmap.
+- Arenas: Number of created arenas.
+- Total memory: Total memory that allocated from OS through brk() or mmap().
+- Avail memory: Memory that kept by low level malloc but not used by application.
+- Used memory: Memory that used by application through malloc().
+- Used memory%: used memory / total memory.
+- Free chunks: Chunks that linked in the double-linked list of bins except fastbins.
+- Fastbin chunks: Chunks that linked in the single-linked list of fastbins.
+- Mmapped chunks: Chunks that allocated from OS directly by mmap().
+- Mmapped memory: Total memory of mmapped chunks.
+- Trim threshold: The maximum amount of unused top-most memory to keep before releasing via malloc_trim in free().
+- Mmap_threshold: The request size threshold for using mmap() to service a request. Requests of at least this size that cannot be allocated using already-existing space will be serviced via mmap.
