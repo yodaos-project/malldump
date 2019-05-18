@@ -45,12 +45,12 @@ do_init()
     [ ! -e $PROJECT_DIR/lib ] && mkdir -p $PROJECT_DIR/lib
 }
 
-libcx()
+extlibc()
 {
-    libcx_path=$PROJECT_DIR/deps/libcx
+    extlibc_path=$PROJECT_DIR/deps/extlibc
 
     if [ ! "$(find $PROJECT_DIR/lib* -maxdepth 1 -name *${FUNCNAME[0]}*)" ]; then
-        mkdir -p $libcx_path/build && cd $libcx_path/build
+        mkdir -p $extlibc_path/build && cd $extlibc_path/build
         cmake .. -DCMAKE_INSTALL_PREFIX:PATH=$PROJECT_DIR
         make -j$JOBS && make install
         [ ! $? -eq 0 ] && exit 1
@@ -65,5 +65,5 @@ malldump()
 }
 
 do_init
-do_build libcx
+do_build extlibc
 do_build malldump
