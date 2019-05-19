@@ -1,6 +1,6 @@
 # Malldump
 
-[![Build Status](https://travis-ci.com/yonzkon/libcx.svg?branch=master)](https://travis-ci.com/yonzkon/libcx)
+[![Build Status](https://travis-ci.com/yodaos-project/malldump.svg?branch=master)](https://travis-ci.com/yodaos-project/malldump)
 
 Attach to a process and dump statistics of low level malloc(ptmalloc, the glibc implementation) of the process.
 
