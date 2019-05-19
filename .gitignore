@@ -3,7 +3,7 @@
 bin/
 sbin/
 include/
-lib*/
+lib*
 share/
 etc/
 thirdparty/

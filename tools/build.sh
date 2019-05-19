@@ -3,10 +3,11 @@
 # usage
 usage()
 {
-    echo -e "USAGE: $0 [TOOLCHAIN]"
+    echo -e "usage: TOOLCHAIN=<toolchain prefix> DEBUG=yes $0 "
     echo -e "  TOOLCHAIN    arm-linux-gnueabi, [default: ]"
+    echo -e "  DEBUG        on|yes, [default: OFF]"
     echo -e ".e.g: $0"
-    echo -e ".e.g: $0 arm-linux-gnueabi"
+    echo -e ".e.g: TOOLCHAIN=arm-linux-gnueabi DEBUG=yes $0"
 }
 [[ "$*" =~ "help" ]] || [[ "$*" =~ "-h" ]] && usage && exit 2
 
@@ -16,7 +17,8 @@ SCRIPT_DIR=$(cd `dirname $0`; pwd)
 PROJECT_DIR=$SCRIPT_DIR/../
 
 # parse opts & envs
-[ -n "$1" ] && TOOLCHAIN=${1}-
+[ -n "$TOOLCHAIN" ] && TOOLCHAIN=${TOOLCHAIN}-
+[ -z "$DEBUG" ] && DEBUG=OFF
 [ -z "$JOBS" ] &&  JOBS=1
 [[ "$OSTYPE" == "linux-gnu" ]] && ((JOBS=$(grep -c ^processor /proc/cpuinfo)-1))
 
@@ -42,7 +44,7 @@ do_init()
     git submodule init
     git submodule update
 
-    [ ! -e $PROJECT_DIR/lib ] && mkdir -p $PROJECT_DIR/lib
+    [ ! -e $PROJECT_DIR/lib ] && mkdir -p $PROJECT_DIR/lib && ln -sf lib lib64
 }
 
 extlibc()
@@ -60,7 +62,7 @@ extlibc()
 malldump()
 {
     mkdir -p $PROJECT_DIR/build && cd $PROJECT_DIR/build
-    cmake .. && make -j$JOBS
+    cmake .. -DBUILD_DEBUG=$DEBUG && make -j$JOBS
     [ ! $? -eq 0 ] && exit 1
 }
 
