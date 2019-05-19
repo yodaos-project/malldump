@@ -48,11 +48,11 @@ endif ()
 add_definitions(-DNARENAS_OFFSET=${NARENAS_OFFSET})
 message(STATUS "NARENAS_OFFSET: " ${NARENAS_OFFSET})
 
-file(GLOB SRC *.c)
-file(GLOB INC *.h)
+file(GLOB_RECURSE SRC *.c)
+file(GLOB_RECURSE INC *.h)
+include_directories(extlibc)
 
 add_executable(malldump ${SRC})
-target_link_libraries(malldump libcx.a)
 
 install(TARGETS malldump
 	RUNTIME DESTINATION bin

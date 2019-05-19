@@ -1,3 +1,0 @@
-[submodule "deps/extlibc"]
-	path = deps/extlibc
-	url = https://github.com/yonzkon/extlibc.git

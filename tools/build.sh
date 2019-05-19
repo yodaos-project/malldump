@@ -49,5 +49,5 @@ do_init()
 
 source $SCRIPT_DIR/user-build.sh
 
-do_init
+#do_init
 main
