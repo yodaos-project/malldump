@@ -1,0 +1,20 @@
+rule-configurations:
+  - key: LONG_LINE
+    value: 83
+  - key: LONG_METHOD
+    value: 100 # default 50
+  - key: CYCLOMATIC_COMPLEXITY
+    value: 20  # default 10
+  - key: NCSS_METHOD
+    value: 60  # default 30
+  - key: NPATH_COMPLEXITY
+    value: 400 # default 200
+
+disable-rules:
+  - ShortVariableName
+  - GotoStatement
+  - InvertedLogic
+  - ParameterReassignment
+  - UnusedMethodParameter
+  - BitwiseOperatorInConditional
+  - ConstantConditionalOperator # switch, snprintf

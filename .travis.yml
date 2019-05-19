@@ -1,14 +1,13 @@
-dist: trusty
-sudo: require
+os:
+  - linux
 
 compiler: gcc
 language: c
-os: linux
+sudo: require
+dist: trusty
 
-addons:
-  apt:
-    packages:
-      - libc6-dbg
+install:
+  - sudo apt-get install -y libc6-dbg
 
 script:
   - bash ./tools/build.sh
