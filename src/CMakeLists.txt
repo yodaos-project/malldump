@@ -4,26 +4,23 @@ execute_process(
     COMMAND ${CMAKE_C_COMPILER} -print-sysroot
     COMMAND awk "{printf $0}"
     OUTPUT_VARIABLE SYSROOT)
-if ("${SYSROOT}" STREQUAL "")
-    message(FATAL_ERROR "Unknown sysroot")
-endif ()
 message(STATUS "sysroot: " ${SYSROOT})
 
 execute_process(
     COMMAND ${CMAKE_C_COMPILER} -print-file-name=libc.so.6
     COMMAND xargs readlink -f
     COMMAND awk "{printf $0}"
-    OUTPUT_VARIABLE LIBC_PATH)
-if ("${LIBC_PATH}" STREQUAL "")
+    OUTPUT_VARIABLE LIBC_SYMBOL_PATH)
+if ("${LIBC_SYMBOL_PATH}" STREQUAL "")
     message(FATAL_ERROR "Can't find libc.so.6")
 endif ()
 if (EXISTS "${SYSROOT}/usr/lib/debug")
-    set(LIBC_PATH "${SYSROOT}/usr/lib/debug/${LIBC_PATH}")
+    set(LIBC_SYMBOL_PATH "${SYSROOT}/usr/lib/debug/${LIBC_SYMBOL_PATH}")
 endif ()
-message(STATUS "LIBC_PATH: " ${LIBC_PATH})
+message(STATUS "LIBC_SYMBOL_PATH: " ${LIBC_SYMBOL_PATH})
 
 execute_process(
-    COMMAND echo ${LIBC_PATH}
+    COMMAND echo ${LIBC_SYMBOL_PATH}
     COMMAND xargs nm
     COMMAND grep __libc_mallinfo
     COMMAND awk "{printf \"0x\"$1}"
@@ -35,7 +32,7 @@ add_definitions(-DMALLINFO_OFFSET=${MALLINFO_OFFSET})
 message(STATUS "MALLINFO_OFFSET: " ${MALLINFO_OFFSET})
 
 execute_process(
-    COMMAND echo ${LIBC_PATH}
+    COMMAND echo ${LIBC_SYMBOL_PATH}
     COMMAND xargs nm
     COMMAND grep -e "d mp_"
     COMMAND awk "{printf \"0x\"$1}"
@@ -47,7 +44,7 @@ add_definitions(-DMP__OFFSET=${MP__OFFSET})
 message(STATUS "MP__OFFSET: " ${MP__OFFSET})
 
 execute_process(
-    COMMAND echo ${LIBC_PATH}
+    COMMAND echo ${LIBC_SYMBOL_PATH}
     COMMAND xargs nm
     COMMAND grep -e "d narenas"
     COMMAND awk "{printf \"0x\"$1}"
