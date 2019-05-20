@@ -1,14 +1,24 @@
 cmake_minimum_required(VERSION 2.8)
 
 execute_process(
+    COMMAND ${CMAKE_C_COMPILER} -print-sysroot
+    COMMAND awk "{printf $0}"
+    OUTPUT_VARIABLE SYSROOT)
+if ("${SYSROOT}" STREQUAL "")
+    message(FATAL_ERROR "Unknown sysroot")
+endif ()
+message(STATUS "sysroot: " ${SYSROOT})
+
+execute_process(
     COMMAND ${CMAKE_C_COMPILER} -print-file-name=libc.so.6
     COMMAND xargs readlink -f
+    COMMAND awk "{printf $0}"
     OUTPUT_VARIABLE LIBC_PATH)
 if ("${LIBC_PATH}" STREQUAL "")
     message(FATAL_ERROR "Can't find libc.so.6")
 endif ()
-if (EXISTS "/usr/lib/debug")
-    set(LIBC_PATH "/usr/lib/debug/${LIBC_PATH}")
+if (EXISTS "${SYSROOT}/usr/lib/debug")
+    set(LIBC_PATH "${SYSROOT}/usr/lib/debug/${LIBC_PATH}")
 endif ()
 message(STATUS "LIBC_PATH: " ${LIBC_PATH})
 
