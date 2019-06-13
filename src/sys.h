@@ -2,6 +2,11 @@
 #define __SYS_H
 
 #include <sys/user.h>
+#include "regs.h"
+
+#ifdef __arm__
+#define user_regs_struct user_regs
+#endif
 
 #define PT_LEN sizeof(void *)
 

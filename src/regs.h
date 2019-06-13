@@ -17,7 +17,6 @@
 #define PC(registers) ((registers)->pc)
 #define TRAP_INST_LEN 0 // ill inst
 #elif defined __arm__
-#define user_regs_struct user_regs
 #define R0(registers) ((registers)->uregs[0])
 #define RR(registers) ((registers)->uregs[3])
 #define FP(registers) ((registers)->uregs[11])
